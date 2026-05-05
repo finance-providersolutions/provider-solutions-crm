@@ -116,7 +116,7 @@ export default function Login() {
                   Check your email
                 </div>
                 <p className="text-text-dim text-sm">
-                  We sent a 6-digit code to <span className="text-text font-mono">{email}</span>
+                  We sent a sign-in code to <span className="text-text font-mono">{email}</span>
                 </p>
               </div>
 
