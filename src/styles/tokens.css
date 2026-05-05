@@ -1,0 +1,87 @@
+/* =============================================================
+   Provider Solutions — design tokens
+   Single source of truth for color + radius. Mirrors the dashboard
+   exactly, with a CRM-only --warning addition. shadcn/ui token
+   aliases are computed from the brand values below.
+   ============================================================= */
+
+/* Dark theme (default) */
+:root {
+  --bg:           #0b1c2e;
+  --grid:         #0d2040;
+  --surface:      #122540;
+  --surface2:     #1a3050;
+  --border:       #7ee8e860;
+  --accent:       #7ee8e8;
+  --accent-dim:   #7ee8e818;
+  --accent2:      #b8f4f4;
+  --accent-bright:#00e0ff;
+  --text:         #dff4f4;
+  --text-dim:     #7eb8c8;
+  --text-muted:   #3a6a7a;
+  --radius:       5px;
+  --g:            #3ecf8e;   /* income / positive / won  */
+  --r:            #ff8080;   /* danger / lost / expired  */
+  --gp:           #7ee8e8;   /* gross profit / accent variant */
+  --warning:      #c8a840;   /* CRM-only — amber for estimates / soon-expiring */
+  --header-h:     58px;
+  --footer-h:     52px;
+
+  /* ─── shadcn/ui token aliases (HSL triplets, no hsl() wrapper) ───
+     Brand --accent is authoritative. shadcn's "accent" role (used for
+     hover/selected states in primitives) maps to brand accent so
+     dropdowns/select hover use the brand teal. */
+  --background:           210 60% 11%;   /* var(--bg)            */
+  --foreground:           180 60% 91%;   /* var(--text)          */
+  --card:                 214 56% 16%;   /* var(--surface)       */
+  --card-foreground:      180 60% 91%;
+  --popover:              214 56% 16%;
+  --popover-foreground:   180 60% 91%;
+  --primary:              180 65% 70%;   /* var(--accent)        */
+  --primary-foreground:   210 60% 11%;
+  --secondary:            214 51% 21%;   /* var(--surface2)      */
+  --secondary-foreground: 180 60% 91%;
+  --muted:                214 51% 21%;
+  --muted-foreground:     195 30% 64%;   /* var(--text-dim)      */
+  --destructive:          0 100% 75%;    /* var(--r)             */
+  --destructive-foreground: 210 60% 11%;
+  --input:                214 51% 21%;
+  --ring:                 180 65% 70%;
+}
+
+/* Light theme override */
+:root[data-theme="light"] {
+  --bg:           #f0f6fb;
+  --grid:         #dceaf4;
+  --surface:      #ffffff;
+  --surface2:     #e8f2f9;
+  --border:       #7ee8e840;
+  --accent:       #0e8080;
+  --accent-dim:   #0e808014;
+  --accent2:      #0a6060;
+  --accent-bright:#0099aa;
+  --text:         #1a3048;
+  --text-dim:     #2a5070;
+  --text-muted:   #6090b0;
+  --g:            #1a7a3a;
+  --r:            #c03030;
+  --gp:           #0e8080;
+  --warning:      #8a6f1c;
+
+  --background:           207 53% 96%;
+  --foreground:           213 47% 19%;
+  --card:                 0 0% 100%;
+  --card-foreground:      213 47% 19%;
+  --popover:              0 0% 100%;
+  --popover-foreground:   213 47% 19%;
+  --primary:              180 80% 28%;
+  --primary-foreground:   207 53% 96%;
+  --secondary:            207 56% 94%;
+  --secondary-foreground: 213 47% 19%;
+  --muted:                207 56% 94%;
+  --muted-foreground:     210 44% 30%;
+  --destructive:          0 60% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --input:                207 56% 94%;
+  --ring:                 180 80% 28%;
+}

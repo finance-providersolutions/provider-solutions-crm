@@ -11,10 +11,11 @@ dist-ssr/
 .env.local
 .env.*.local
 
-# Editors
+# Editors / harness
 .vscode/*
 !.vscode/extensions.json
 .idea/
+.claude/
 *.suo
 *.ntvs*
 *.njsproj
