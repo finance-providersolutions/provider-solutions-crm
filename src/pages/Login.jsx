@@ -106,7 +106,7 @@ export default function Login() {
                 {submitting ? 'Sending…' : 'Send sign-in code'}
               </Button>
               <p className="text-text-muted text-xs leading-relaxed">
-                We'll email you a 6-digit code. No password needed.
+                We'll email you a sign-in code. No password needed.
               </p>
             </form>
           ) : (
