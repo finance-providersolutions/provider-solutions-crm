@@ -79,7 +79,7 @@ export default function Organization() {
   if (!org)    return <Centered>Organization not found.</Centered>;
 
   return (
-    <div className="min-h-full pt-[58px] pb-12 px-6">
+    <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
       <div className="max-w-6xl mx-auto py-8">
         <button
           onClick={() => navigate('/organizations')}
@@ -288,7 +288,7 @@ function Empty() { return <span className="text-text-muted">—</span>; }
 
 function Centered({ children, tone }) {
   return (
-    <div className="min-h-full pt-[58px] flex items-center justify-center">
+    <div className="min-h-full flex items-center justify-center" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
       <div className={cn(
         'font-mono text-sm uppercase tracking-[0.12em]',
         tone === 'danger' ? 'text-danger' : 'text-text-dim',

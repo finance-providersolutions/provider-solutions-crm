@@ -47,8 +47,11 @@ export default function Navigation({ onSignOut }) {
           />
 
           <nav
-            className="fixed top-0 h-full w-[280px] z-[400] flex flex-col pt-[58px] border-l border-border bg-surface transition-[right] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            style={{ right: open ? 0 : -280 }}
+            className="fixed top-0 h-full w-[280px] z-[400] flex flex-col border-l border-border bg-surface transition-[right] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            style={{
+              right: open ? 0 : -280,
+              paddingTop: 'calc(58px + env(safe-area-inset-top))',
+            }}
           >
             <DrawerHeader onClose={close}>Navigation</DrawerHeader>
 

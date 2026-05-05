@@ -15,7 +15,7 @@ export default function Home() {
   const recent = useActivities({ limit: 10 });
 
   return (
-    <div className="min-h-full pt-[58px] pb-12 px-6">
+    <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
       <div className="max-w-6xl mx-auto py-8">
         <h1 className="font-display text-4xl text-text mb-2">Home</h1>
         <p className="text-text-dim mb-10 font-mono text-[11px] uppercase tracking-[0.12em]">

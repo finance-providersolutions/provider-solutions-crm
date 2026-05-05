@@ -40,7 +40,7 @@ export default function Contacts() {
   }, [contacts.data, search, orgFilter]);
 
   return (
-    <div className="min-h-full pt-[58px] pb-12 px-6">
+    <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
       <div className="max-w-6xl mx-auto py-8">
         <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
           <div>
