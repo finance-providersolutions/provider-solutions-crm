@@ -33,7 +33,7 @@ export default function Login() {
   async function handleCodeSubmit(e) {
     e.preventDefault();
     if (code.trim().length < 6) {
-      toast.error('Enter the 6-digit code from the email');
+      toast.error('Enter the code from the email');
       return;
     }
     setSubmitting(true);
@@ -129,6 +129,12 @@ export default function Login() {
                   auto-suggest the code from the recent email above the
                   keyboard (iOS 17+).
                 */}
+                {/*
+                  Supabase email OTP length is configurable from 6 to 10
+                  digits in dashboard → Auth → Providers → Email. We accept
+                  any length in that range so a project setting change
+                  doesn't lock users out.
+                */}
                 <Input
                   id="code"
                   type="text"
@@ -136,11 +142,10 @@ export default function Login() {
                   autoFocus
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
+                  pattern="[0-9]{6,10}"
+                  maxLength={10}
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="123456"
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
                   className="bg-bg border-border text-text text-center font-mono text-2xl tracking-[0.4em]"
                 />
               </div>

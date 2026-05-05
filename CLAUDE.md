@@ -11,10 +11,11 @@ Internal CRM for Provider Solutions, LLC, a LOCUMs physician staffing company. S
 - **Hosting**: Cloudflare Pages, same as `ps-app-dashboard/`. Each app keeps its own Pages project. SPA fallback via `public/_redirects` (`/* /index.html 200`).
 - **Credential expiration alert recipient**: `all.provider.solutions@gmail.com` (used by the Phase 3 `credential-alerts` Edge Function)
 - **Backend**: Supabase (single project, all environments share it for now)
+- **Legacy AppSheet linkage**: tables that may have legacy AppSheet records use an `appsheet_id` text column for stable matching during the transition. Currently: `providers`, `organizations`, `opportunities`.
 
 ## Suite context
 
-This repo (`ps-app-crm/`) lives inside a `ps-apps-suite/` parent workspace alongside the existing financial dashboard. Claude Code is launched from the parent so it can read both apps. See `BUILD_PLAN.md` §5–§6 for full structure and integration model.
+This repo (`ps-app-crm/`) lives inside a `ps-apps-suite/` parent workspace alongside the existing financial dashboard. Claude Code is launched from the parent so it can read both apps. See `BUILD_PLAN.md` §5–§6 for full structure and integration model, and `BUILD_PLAN.md` §10 for the suite migration roadmap (end state, transition rules, AppSheet retirement).
 
 ```
 ps-apps-suite/                   ← claude code runs from here
@@ -175,6 +176,7 @@ Status colors:
 
 - Not a replacement for the **financial dashboard** (separate repo, stays as-is on its own host).
 - Not a replacement for **AppSheet** yet — providers still log shifts there. The `providers.appsheet_id` column links the two for now; the eventual provider portal is a future, separate app.
+- Not a two-way sync layer with AppSheet. AppSheet is being retired, not synchronized. See `BUILD_PLAN.md` §10.4.
 - Not a scheduling system. Placements are the handoff point to the future scheduling app.
 - Not TypeScript. The dashboard is plain JSX; the CRM matches.
 
