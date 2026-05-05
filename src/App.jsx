@@ -1,50 +1,55 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { useAuth } from '@/hooks/useAuth';
+import RequireAuth from '@/components/auth/RequireAuth';
 import PageHeader from '@/components/brand/PageHeader';
-import SectionHeader from '@/components/brand/SectionHeader';
-import KPICard from '@/components/brand/KPICard';
 import { Toaster } from '@/components/ui/sonner';
 
-// Temporary brand preview page. Real routes (Login, Home, Organizations,
-// Organization, Contacts) wire up in the next commit alongside auth.
-function BrandPreview() {
+import Login from '@/pages/Login';
+import Home from '@/pages/Home';
+import Organizations from '@/pages/Organizations';
+import Organization from '@/pages/Organization';
+import Contacts from '@/pages/Contacts';
+
+function AppShell({ children }) {
+  const { signOut } = useAuth();
   return (
-    <div className="min-h-full pt-[58px] pb-12 px-6">
-      <div className="max-w-6xl mx-auto py-8">
-        <h1 className="font-display text-4xl text-text mb-2">Phase 1 brand shell</h1>
-        <p className="text-text-dim mb-10">
-          Tokens, fonts, and the five brand components — preview before auth + routing land.
-        </p>
-
-        <SectionHeader text="KPI cards" first />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-          <KPICard label="Organizations" value="—" sub="No data yet" />
-          <KPICard label="Contacts"      value="—" sub="No data yet" color="green" />
-          <KPICard label="Activities (7d)" value="—" sub="No data yet" color="blue" />
-        </div>
-
-        <SectionHeader text="Status colors" />
-        <div className="flex flex-wrap gap-6 font-mono text-sm">
-          <span className="text-income">● won / active</span>
-          <span className="text-accent">● in-progress</span>
-          <span className="text-warning italic">~ estimate</span>
-          <span className="text-danger">● lost / expired</span>
-        </div>
-      </div>
-    </div>
+    <>
+      <PageHeader subtitle="CRM · Phase 1" onSignOut={signOut} />
+      {children}
+    </>
   );
 }
 
 export default function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <PageHeader subtitle="CRM · Phase 1" />
-        <Routes>
-          <Route path="*" element={<BrandPreview />} />
-        </Routes>
-        <Toaster />
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/"
+              element={<RequireAuth><AppShell><Home /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/organizations"
+              element={<RequireAuth><AppShell><Organizations /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/organizations/:id"
+              element={<RequireAuth><AppShell><Organization /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/contacts"
+              element={<RequireAuth><AppShell><Contacts /></AppShell></RequireAuth>}
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          <Toaster />
+        </BrowserRouter>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
