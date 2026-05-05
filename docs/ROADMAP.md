@@ -4,17 +4,25 @@ Scope is this app only. Cross-app and suite-level work lives in ps-apps-suite/do
 
 ## In flight
 
-Nothing actively under development right now. Phase 1 shipped. Recent finishing touches landed in the last few sessions: PWA install metadata, iOS safe-area-inset-top handling on the fixed header and pages, and switching login from magic link to a 6-to-10 digit email OTP so the flow stays inside the installed PWA.
+Phase 2 schema migration. supabase/migrations/0002_pipelines.sql is written and adds providers, opportunities (with the full six-bill / five-pay rate structure plus shift defaults, on-call window, and a modeling_assumptions jsonb column), tasks, and placements; adds appsheet_id and image columns to organizations; wires the placeholder activities.opportunity_id and provider_id columns to real foreign keys; turns on Phase 1-style permissive RLS on the four new tables; creates organization-logos and provider-photos public-read buckets with authenticated-write policies; and seeds Medicus Healthcare Solutions. The migration has not yet been applied to Supabase.
+
+Phase 2 image upload plumbing. components/uploads/ImageUpload.jsx (drag-drop, progress, size/type validation, designed to extend into Phase 3 credentials), components/uploads/Thumb.jsx (thumbnail with initials fallback), utils/storage.js (getPublicUrl wrapper + initialsFor helper), and shadcn avatar and progress primitives are in place. Organization.jsx detail page now renders the organization logo via Thumb.
+
+Phase 2 AppSheet import script. scripts/import-from-appsheet.js is written — local-only Node script that reads the AppSheet snapshot workbook from the suite-level _reference/ folder, normalizes specialty and position type, parses City/ST, upserts providers, organizations, and opportunities by appsheet_id, and uploads image binaries from _reference/appsheet-images/ when present. Dry-run mode required. Has not yet been run against the live Supabase project.
 
 ## Next up
 
-Phase 2 — opportunities and providers pipeline. New tables (opportunities with the full bill-side and pay-side rate structure, providers, tasks, placements), the activities FK constraints for opportunity_id and provider_id added by ALTER TABLE, plus storage buckets for organization-logos and provider-photos. Two new pages each for opportunities and providers (list and detail), a Tasks page, and an updated Home with real pipeline KPIs.
+Phase 2 — apply 0002_pipelines.sql to Supabase, then run the AppSheet import in dry-run, review the log, and run it for real.
 
-Phase 2 — one-time AppSheet import. A local-only Node script at scripts/import-from-appsheet.js reads from _reference/Snapshot of AppSheet Data - Provider Solutions (2026-05-05).xlsx, normalizes specialty and position type, parses City/ST, and upserts providers, organizations, and opportunities by appsheet_id. Idempotent, dry-run required, run by Jason locally with the service role key in env. Image binaries from _reference/appsheet-images/ upload to the public-read storage buckets when present.
+Phase 2 — opportunities pages. List view with kanban-by-stage and table modes plus filters, and a detail page with associated activities, tasks, suggested-providers placeholder, and the GP modeler section.
 
-Phase 2 — GP modeler on opportunity detail. Live computation from the rate-structure fields on the opportunity row times saved utilization assumptions (shifts per week, OT hours per day, on-call frequency, etc.). Saves the assumption blob to opportunities.modeling_assumptions as jsonb. Estimates render in italic with the warning color and a tilde prefix per the design system.
+Phase 2 — providers pages. List view with status, specialty, and search filters and provider photo thumbnails in rows. Detail page with activities, tasks, placements, header photo, and a credentialing tab placeholder for Phase 3.
 
-Phase 2 — image upload component. A reusable src/components/uploads/ImageUpload.jsx with drag-drop, progress, and size/type validation, written so it can extend into Phase 3 credential document uploads against the private credentials bucket.
+Phase 2 — tasks page. Three views (my open tasks, all open tasks, completed in last 30 days) with quick-complete.
+
+Phase 2 — GP modeler component on opportunity detail. Live computation from the opportunity's rate-structure fields times saved utilization assumptions. Saves the assumption blob to opportunities.modeling_assumptions. Estimates render in italic with the warning color and a tilde prefix.
+
+Phase 2 — updated Home dashboard. Replace the Phase 1 KPIs with pipeline-aware ones: open opportunities by stage, active providers, tasks due today, and recent activity. Wire any opportunity-vs-actuals views to the qbo-proxy worker rather than copying QBO data into Supabase.
 
 Phase 3 — credentialing. New tables for provider_licenses, credentials, and facility_privileges, a private credentials storage bucket with RLS and signed-URL viewing, a cross-provider expiration dashboard with 30/60/90-day buckets, and a daily credential-alerts Supabase Edge Function that emails the team digest via Resend to all.provider.solutions@gmail.com.
 
