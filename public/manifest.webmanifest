@@ -1,0 +1,18 @@
+{
+  "name": "Provider Solutions CRM",
+  "short_name": "PS CRM",
+  "description": "Provider Solutions internal CRM",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b1c2e",
+  "theme_color": "#0b1c2e",
+  "icons": [
+    {
+      "src": "/pslogo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
