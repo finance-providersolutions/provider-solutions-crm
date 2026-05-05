@@ -1,14 +1,19 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
 import OrganizationFormDialog from '@/components/organizations/OrganizationFormDialog';
+import ContactFormDialog from '@/components/contacts/ContactFormDialog';
+import LogActivityForm from '@/components/activities/LogActivityForm';
+import ActivityFeed from '@/components/activities/ActivityFeed';
 import { useOrganization, useOrganizations } from '@/hooks/useOrganizations';
-import { ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
-import { fmtDateTime } from '@/utils/formatters';
+import { useContacts } from '@/hooks/useContacts';
+import { useActivities } from '@/hooks/useActivities';
+import { CONTACT_ROLES, ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
+import { fmtDateTime, fmtName, fmtPhone } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 
 const TYPE_BADGE = {
@@ -22,7 +27,12 @@ export default function Organization() {
   const navigate = useNavigate();
   const { data: org, loading, error, refetch } = useOrganization(id);
   const { update, remove } = useOrganizations();
+  const contacts = useContacts({ organizationId: id });
+  const activities = useActivities({ organizationId: id });
+
   const [editOpen, setEditOpen] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
 
   async function handleDelete() {
     if (!org) return;
@@ -40,15 +50,33 @@ export default function Organization() {
     }
   }
 
-  if (loading) {
-    return <Centered>Loading…</Centered>;
+  async function handleDeleteContact(c) {
+    const confirmed = window.confirm(`Delete contact "${fmtName(c)}"?`);
+    if (!confirmed) return;
+    try {
+      await contacts.remove(c.id);
+      toast.success('Contact deleted');
+    } catch (err) {
+      console.error('delete contact', err);
+      toast.error(err?.message || 'Could not delete contact');
+    }
   }
-  if (error) {
-    return <Centered tone="danger">{error.message}</Centered>;
+
+  async function handleDeleteActivity(a) {
+    const confirmed = window.confirm('Delete this activity entry?');
+    if (!confirmed) return;
+    try {
+      await activities.remove(a.id);
+      toast.success('Activity deleted');
+    } catch (err) {
+      console.error('delete activity', err);
+      toast.error(err?.message || 'Could not delete activity');
+    }
   }
-  if (!org) {
-    return <Centered>Organization not found.</Centered>;
-  }
+
+  if (loading) return <Centered>Loading…</Centered>;
+  if (error)   return <Centered tone="danger">{error.message}</Centered>;
+  if (!org)    return <Centered>Organization not found.</Centered>;
 
   return (
     <div className="min-h-full pt-[58px] pb-12 px-6">
@@ -90,7 +118,7 @@ export default function Organization() {
             <DetailField label="Website">
               {org.website
                 ? (
-                  <a href={org.website} target="_blank" rel="noreferrer"
+                  <a href={ensureProtocol(org.website)} target="_blank" rel="noreferrer"
                      className="text-accent hover:text-accent-bright inline-flex items-center gap-1 break-all">
                     {org.website} <ExternalLink className="w-3 h-3 flex-shrink-0" />
                   </a>
@@ -117,15 +145,96 @@ export default function Organization() {
           </DetailGrid>
         </div>
 
-        <SectionHeader text="Contacts" />
-        <div className="bg-surface border border-border rounded p-8 text-center text-text-dim font-mono text-xs uppercase tracking-[0.12em] mb-10">
-          Contacts list lands in the next commit.
+        <div className="flex items-center justify-between mb-3">
+          <SectionHeader text="Contacts" first />
+        </div>
+        <div className="-mt-3 mb-3 flex justify-end">
+          <Button
+            onClick={() => { setEditingContact(null); setContactOpen(true); }}
+            variant="outline"
+            className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+          >
+            <Plus className="w-4 h-4 mr-1" /> Add contact
+          </Button>
         </div>
 
+        {contacts.loading && (
+          <div className="bg-surface border border-border rounded p-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted mb-10">
+            Loading…
+          </div>
+        )}
+        {!contacts.loading && contacts.error && (
+          <div className="bg-surface border border-border rounded p-6 text-center font-mono text-xs text-danger mb-10">
+            {contacts.error.message}
+          </div>
+        )}
+        {!contacts.loading && !contacts.error && contacts.data.length === 0 && (
+          <div className="bg-surface border border-border rounded p-8 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted mb-10">
+            No contacts yet.
+          </div>
+        )}
+        {!contacts.loading && !contacts.error && contacts.data.length > 0 && (
+          <ul className="bg-surface border border-border rounded divide-y divide-border/40 overflow-hidden mb-10">
+            {contacts.data.map(c => (
+              <li key={c.id} className="p-4 flex items-start gap-3 group">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-text">{fmtName(c)}</span>
+                    {c.role && (
+                      <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-[0.1em] bg-surface2 text-text-dim border-border">
+                        {labelFor(CONTACT_ROLES, c.role)}
+                      </Badge>
+                    )}
+                    {c.title && <span className="text-text-dim text-sm">· {c.title}</span>}
+                  </div>
+                  <div className="flex items-center gap-4 flex-wrap text-sm mt-1 text-text-dim font-mono">
+                    {c.email && (
+                      <a href={`mailto:${c.email}`} className="hover:text-accent">{c.email}</a>
+                    )}
+                    {c.phone && (
+                      <a href={`tel:${c.phone}`} className="hover:text-accent">{fmtPhone(c.phone)}</a>
+                    )}
+                  </div>
+                  {c.notes && (
+                    <p className="text-text-dim text-sm mt-1 whitespace-pre-wrap">{c.notes}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => { setEditingContact(c); setContactOpen(true); }}
+                    className="text-text-muted hover:text-accent p-1"
+                    aria-label="Edit contact"
+                    type="button"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteContact(c)}
+                    className="text-text-muted hover:text-danger p-1"
+                    aria-label="Delete contact"
+                    type="button"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <SectionHeader text="Activity" />
-        <div className="bg-surface border border-border rounded p-8 text-center text-text-dim font-mono text-xs uppercase tracking-[0.12em] mb-10">
-          Activity log + Log activity form land in the next commit.
-        </div>
+        <LogActivityForm
+          parentColumn="organization_id"
+          parentId={id}
+          onLogged={async (input) => { await activities.create(input); }}
+        />
+        <ActivityFeed
+          activities={activities.data}
+          loading={activities.loading}
+          emptyText="No activity logged yet."
+          onDelete={handleDeleteActivity}
+        />
+        <div className="mb-10" />
 
         <div className="border-t border-border/50 pt-6">
           <Button
@@ -147,6 +256,17 @@ export default function Organization() {
           await refetch();
         }}
       />
+
+      <ContactFormDialog
+        open={contactOpen}
+        onOpenChange={(o) => { setContactOpen(o); if (!o) setEditingContact(null); }}
+        contact={editingContact}
+        organizationId={id}
+        onSave={async (payload) => {
+          if (editingContact) await contacts.update(editingContact.id, payload);
+          else await contacts.create(payload);
+        }}
+      />
     </div>
   );
 }
@@ -164,9 +284,7 @@ function DetailField({ label, full = false, children }) {
   );
 }
 
-function Empty() {
-  return <span className="text-text-muted">—</span>;
-}
+function Empty() { return <span className="text-text-muted">—</span>; }
 
 function Centered({ children, tone }) {
   return (
@@ -179,4 +297,11 @@ function Centered({ children, tone }) {
       </div>
     </div>
   );
+}
+
+// Users will likely type "providersolutions.com" without a scheme;
+// add https:// so the anchor doesn't resolve relative to the app.
+function ensureProtocol(url) {
+  if (!url) return url;
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
