@@ -27,10 +27,23 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  async function signInWithMagicLink(email) {
+  // Request a 6-digit code (and a magic link, in the same email; the user
+  // typically just types the code so the flow stays inside the PWA).
+  async function requestEmailOtp(email) {
     return supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/` },
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    });
+  }
+
+  async function verifyEmailOtp(email, token) {
+    return supabase.auth.verifyOtp({
+      email,
+      token: token.trim(),
+      type: 'email',
     });
   }
 
@@ -42,7 +55,8 @@ export function AuthProvider({ children }) {
     session,
     user: session?.user ?? null,
     loading,
-    signInWithMagicLink,
+    requestEmailOtp,
+    verifyEmailOtp,
     signOut,
   };
 
