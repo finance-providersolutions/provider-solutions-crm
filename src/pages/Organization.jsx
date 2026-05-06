@@ -9,11 +9,14 @@ import OrganizationFormDialog from '@/components/organizations/OrganizationFormD
 import ContactFormDialog from '@/components/contacts/ContactFormDialog';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
+import TasksSection from '@/components/tasks/TasksSection';
+import Thumb from '@/components/uploads/Thumb';
 import { useOrganization, useOrganizations } from '@/hooks/useOrganizations';
 import { useContacts } from '@/hooks/useContacts';
 import { useActivities } from '@/hooks/useActivities';
 import { CONTACT_ROLES, ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
 import { fmtDateTime, fmtName, fmtPhone } from '@/utils/formatters';
+import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
 const TYPE_BADGE = {
@@ -89,17 +92,27 @@ export default function Organization() {
         </button>
 
         <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-          <div>
-            <h1 className="font-display text-4xl text-text leading-tight mb-2">{org.name}</h1>
-            <div className="flex items-center gap-2 flex-wrap">
-              {org.type && (
-                <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', TYPE_BADGE[org.type])}>
-                  {labelFor(ORGANIZATION_TYPES, org.type)}
-                </Badge>
-              )}
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                Created {fmtDateTime(org.created_at)}
-              </span>
+          <div className="flex items-start gap-4">
+            <Thumb
+              path={org.logo_path}
+              bucket="organization-logos"
+              alt={`${org.name} logo`}
+              fallback={initialsFor(org.name)}
+              size="xl"
+              shape="square"
+            />
+            <div>
+              <h1 className="font-display text-4xl text-text leading-tight mb-2">{org.name}</h1>
+              <div className="flex items-center gap-2 flex-wrap">
+                {org.type && (
+                  <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', TYPE_BADGE[org.type])}>
+                    {labelFor(ORGANIZATION_TYPES, org.type)}
+                  </Badge>
+                )}
+                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+                  Created {fmtDateTime(org.created_at)}
+                </span>
+              </div>
             </div>
           </div>
           <Button
@@ -233,6 +246,14 @@ export default function Organization() {
           loading={activities.loading}
           emptyText="No activity logged yet."
           onDelete={handleDeleteActivity}
+        />
+        <div className="mb-10" />
+
+        <SectionHeader text="Tasks" />
+        <TasksSection
+          parentColumn="organization_id"
+          parentId={id}
+          parentLabel={org.name || 'this organization'}
         />
         <div className="mb-10" />
 

@@ -58,11 +58,17 @@ export function fmtRelative(value) {
 }
 
 // Returns "(212) 555-1234" for 10-digit US numbers, otherwise the
-// trimmed input (or "—" when empty). Intentionally permissive — we
-// don't reject international numbers, just don't auto-format them.
+// trimmed input (or "—" when empty / no digits). Intentionally
+// permissive — we don't reject international numbers, just don't
+// auto-format them.
+//
+// The no-digits case ("() -" or similar empty-template strings)
+// shows up in legacy AppSheet records where the formatted phone
+// column was always populated even when blank. Treat as empty.
 export function fmtPhone(value) {
   if (!value) return '—';
   const digits = String(value).replace(/\D/g, '');
+  if (digits.length === 0) return '—';
   if (digits.length === 10) {
     return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
   }
