@@ -168,6 +168,8 @@ Phase 1 brand components: `PageHeader`, `Navigation` (top-bar nav button + drawe
 | notes | text | freeform |
 | created_at, updated_at, created_by | | |
 
+The `type` column controls which columns are user-visible in CRUD forms. Hospital-flavored fields (`logo_path`, `image_path`, `tourist_site_url`, `long_description`) are shown when `type = 'hospital'` or `'other'` and hidden when `type = 'locums_partner'`. The columns remain on the table; the form just doesn't show them. Partner organizations only need name, website, address, contacts, and notes.
+
 **contacts** — people at organizations
 
 | col | type | notes |
@@ -225,8 +227,13 @@ proposed/contracted/active states. See `docs/appsheet-schema-notes.md`
 | pay_advanced_shift_bonus_daily | numeric(10,2), default 0 | premium per advanced-shift day |
 | pay_on_call_nightly | numeric(10,2), nullable | per on-call night |
 | pay_other_bonus_daily | numeric(10,2), default 0 | catch-all (holiday pay, one-off premium) |
+| **travel costs** | | |
+| ps_covers_travel | bool, default false | when true, GP nets travel out of bill − pay |
+| travel_airfare_estimate | numeric(10,2), nullable | round-trip cost per assignment block |
+| travel_hotel_per_night_estimate | numeric(10,2), nullable | per-night hotel estimate |
+| travel_rental_per_day_estimate | numeric(10,2), nullable | per-day car rental estimate |
 | **GP modeler** | | |
-| modeling_assumptions | jsonb, nullable | utilization assumptions saved from the GP modeler (shifts/week, OT hours/day, call-back frequency, etc.) |
+| modeling_assumptions | jsonb, nullable | utilization assumptions saved from the GP modeler (shifts/week, OT hours/day, call-back frequency, hotel nights, rental days, airfare trips, etc.) |
 | **pipeline** | | |
 | stage | text | see §4.4 |
 | probability | int | 0–100 |
@@ -234,7 +241,7 @@ proposed/contracted/active states. See `docs/appsheet-schema-notes.md`
 | notes | text | |
 | created_at, updated_at, created_by | | |
 
-CHECK constraints: `on_call_enabled = false OR (bill_on_call_nightly IS NOT NULL AND pay_on_call_nightly IS NOT NULL)`; numeric rates `>= 0`; `regular_hours_per_day BETWEEN 0 AND 24`.
+CHECK constraints: `on_call_enabled = false OR (bill_on_call_nightly IS NOT NULL AND pay_on_call_nightly IS NOT NULL)`; numeric rates `>= 0`; `regular_hours_per_day BETWEEN 0 AND 24`; `ps_covers_travel = true OR (travel_airfare_estimate IS NULL AND travel_hotel_per_night_estimate IS NULL AND travel_rental_per_day_estimate IS NULL)`. The travel constraint is intentionally asymmetric to the on-call one — when the flag is false the rates must be null, but flipping the flag to true does not require rates to be populated immediately (matches the daily-use case where the flag flips before specific rates are priced out).
 
 Estimated GP is **not** stored as a separate column. It's computed live by the GP modeler from rate-structure fields × utilization assumptions. See §7 Phase 2 deliverables for the modeler description.
 
@@ -526,7 +533,9 @@ Goal: Jason and Reed can log in, create organizations and contacts, and log acti
 
 Goal: opportunities and providers have real pipeline visibility; tasks drive day-to-day work; legacy AppSheet data is migrated; opportunity GP can be modeled interactively.
 
-- **`0002_pipelines.sql`**: new tables (`opportunities`, `providers`, `tasks`, `placements`) with the full rate structure on `opportunities` per §4.1; `appsheet_id` columns on `organizations`, `providers`, and `opportunities` (unique-where-not-null); `ALTER TABLE activities` to add FK constraints for `opportunity_id` and `provider_id` (the Phase 1 CHECK constraint covering all four FK columns stays untouched); storage bucket creation for `organization-logos` and `provider-photos` (public read, authenticated write) — bucket creation may be split into a follow-on migration if simpler.
+- **`0002_pipelines.sql`**: new tables (`opportunities`, `providers`, `tasks`, `placements`) with the full rate structure on `opportunities` per §4.1; `appsheet_id` columns on `organizations`, `providers`, and `opportunities` (unique-where-not-null); `ALTER TABLE activities` to add FK constraints for `opportunity_id` and `provider_id` (the Phase 1 CHECK constraint covering all four FK columns stays untouched); storage bucket creation for `organization-logos` and `provider-photos` (public read, authenticated write) inside this same migration — Phase 2 is one atomic schema change.
+
+  Seed insert: one organization row for `'Medicus Healthcare Solutions'` with `type = 'locums_partner'`. This is the only LOCUMs partner currently relevant to legacy AppSheet data; additional partners are added through the CRM UI as relationships develop. Use `ON CONFLICT DO NOTHING` so the migration is safely re-runnable.
 
 - **One-time AppSheet import script** — `ps-app-crm/scripts/import-from-appsheet.js`. Reads directly from the snapshot file at `_reference/Snapshot of AppSheet Data - Provider Solutions (2026-05-05).xlsx`; no AppSheet API call. Imports providers, organizations (`type='hospital'` for AppSheet "Locations"), and opportunities into Supabase. **Idempotent on `appsheet_id`** — re-runs upsert by AppSheet ID, never duplicate. **Dry-run mode required** (`--dry-run` flag prints planned writes without touching the database). Run by Jason locally with the Supabase service-role key set as an env var (`SUPABASE_SERVICE_ROLE_KEY`); never run by Claude Code, never run from the deployed CRM.
 
@@ -537,6 +546,8 @@ Goal: opportunities and providers have real pipeline visibility; tasks drive day
   Address parsing: populate `address` (full AppSheet string), parse `city` and `state` from the `City, ST` field, leave `zip` null. No street regex.
 
   Image migration: if `_reference/appsheet-images/` exists with the AppSheet folder structure preserved (`Providers_Images/...`, `Locations_Images/...`), the script uploads matching binaries into the `provider-photos` and `organization-logos` buckets and populates `photo_path` / `logo_path` / `image_path`. Each upload is recorded in an **image manifest** at `_reference/appsheet-image-import-manifest.json` mapping source AppSheet path → Supabase Storage path. Manifest is the audit trail across re-runs and is also used to detect already-uploaded images on subsequent runs (idempotent image upload). If the folder is absent or partial, the script logs missing images per row, leaves the corresponding fields null, and continues without error — re-upload via the CRM UI for any record where the image matters right now.
+
+  Source partner override: after importing organizations and opportunities, apply a hardcoded `SOURCE_PARTNER_OVERRIDES` map (declared at the top of the script, well-commented) to set `source_partner_id` on affected opportunities. Current entries: the two Billings Clinic opportunities (looked up by AppSheet `Opportunity ID`) → `'Medicus Healthcare Solutions'`. The script resolves the partner by name to its `organizations.id` and patches the rows. If a target partner organization doesn't exist (e.g., the seed insert from the migration didn't run), the script logs `ERROR` and exits non-zero. Map updates are committed to the script file like any other code change.
 
   **Prerequisite**: before running the import, Jason exports AppSheet's image storage (typically a Google Drive folder owned by the AppSheet app) into `_reference/appsheet-images/`, preserving the folder structure referenced by the workbook's path strings (`Providers_Images/`, `Locations_Images/`). If the folder is absent or incomplete, the script logs missing images and leaves `logo_path` / `photo_path` / `image_path` null on affected rows. Re-upload via the CRM UI for any records where the image matters right now. The image export is best-effort — partial coverage is fine, all-or-nothing is not required.
 
@@ -550,8 +561,9 @@ Goal: opportunities and providers have real pipeline visibility; tasks drive day
   - **Save assumptions to opportunity** — writes the assumption blob to `opportunities.modeling_assumptions` (jsonb).
   - **Reset to defaults** — clears the local form back to the documented default assumptions.
 
-- `src/pages/Opportunities.jsx`: dual view — kanban by stage AND table; filters (stage, specialty, source partner, state); create/edit.
-- `src/pages/Opportunity.jsx`: detail with associated activities, tasks, suggested providers (placeholder for Phase 4), and the GP modeler section.
+- `src/pages/Opportunities.jsx`: dual view — kanban by stage AND table; filters (stage, specialty, state, and **source partner**); create/edit. The source-partner filter is a dropdown over partner organizations (where `type = 'locums_partner'`) with options "All" / "Direct (no partner)" / one entry per partner. When an opportunity row or kanban card has a `source_partner_id`, render a small "via [partner name]" badge near the hospital name. The same badge appears on the opportunity detail header and anywhere else opportunities are summarized in a list-row preview.
+- **Opportunity create/edit dialog**: required "Hospital" picker (searchable combobox over organizations where `type = 'hospital'`, with "+ Create new hospital" inline action). Optional "Source partner" picker (searchable combobox over organizations where `type = 'locums_partner'`, with "+ Create new partner" inline action; defaults to "Direct (no partner)"). Both pickers use the shadcn `Command` primitive.
+- `src/pages/Opportunity.jsx`: detail with associated activities, tasks, suggested providers (placeholder for Phase 4), and the GP modeler section. Header shows the hospital with the via-partner badge when applicable.
 - `src/pages/Providers.jsx`: table with status filter, specialty filter, search; create/edit; provider photo thumbnails in rows.
 - `src/pages/Provider.jsx`: detail with activities, tasks, placements; provider photo in header; credentialing tab (placeholder for Phase 3).
 - `src/pages/Tasks.jsx`: "my open tasks", "all open tasks", "completed (last 30d)"; quick-complete.
@@ -563,7 +575,7 @@ Goal: opportunities and providers have real pipeline visibility; tasks drive day
 
 Goal: full self-managed credentialing capability — defensible to a hospital MSO audit.
 
-- `0003_credentialing.sql`: provider_licenses, credentials, facility_privileges, storage bucket policies
+- `0004_credentialing.sql`: provider_licenses, credentials, facility_privileges, storage bucket policies (the migration was originally penciled as 0003, but `0003_travel_costs.sql` shipped during Phase 2 and consumed that slot)
 - Storage bucket `credentials` configured with RLS
 - Provider detail credentialing tab: licenses table, credentials table grouped by type, facility privileges by hospital
 - Document upload UI (drag-drop, progress, file size/type validation)

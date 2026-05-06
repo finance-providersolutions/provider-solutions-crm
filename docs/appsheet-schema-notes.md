@@ -545,18 +545,54 @@ assumptions** (user-adjustable per modeling session, with sensible defaults).
 
 ### E.2 Utilization assumptions (user-adjustable)
 
+Defaults are **setting-aware**: real-world inpatient assignments cover 7
+working days plus 7 on-call nights per shift; outpatient assignments
+cover 4 working days with no on-call. The modeler picks the right
+default block based on `opportunity.setting`. Users can override every
+field — the defaults exist to give a sensible starting projection on
+first open.
+
+When `setting` is null or `'other'`, the modeler falls back to the
+**inpatient** defaults; this is revisited if a third setting type
+emerges.
+
+**Inpatient defaults** (`setting = 'inpatient'` or null/other fallback)
+
 | assumption | default | unit | drives |
 |---|---|---|---|
 | Shifts per week | `1` | full 7-day blocks/wk | bill, pay, weekly GP |
-| Shift days per shift | `7` | days/shift | per-shift bill and pay |
-| Working days per shift | `5` | days/shift | how many days are billable regular-shift days vs days-off-but-still-on-call |
-| Orientation days per placement | `0` or `1` | one-time | only the first shift typically |
+| Shift days per shift | `7` | days/shift | per-shift duration |
+| Working days per shift | `7` | days/shift | how many days bill regular-shift rates |
+| Orientation days per placement | `0` | one-time | typically only the first shift |
 | OT hours per working day | `0` | hours | tail risk; usually zero |
-| On-call nights per shift | `7` (if enabled) | nights/shift | full coverage assumption |
+| On-call nights per shift | `7` (if enabled) | nights/shift | full-week coverage assumption |
 | Call-back hours per call night | `0` | hours/night | rare events |
 | Adv. shift bonus days per shift | `0` | days/shift | bonus frequency |
 | Other bonus days per shift | `0` | days/shift | bonus frequency |
 | Weeks billable per year | `48` | weeks/yr | annualization (4 weeks off baseline) |
+
+**Outpatient defaults** (`setting = 'outpatient'`)
+
+| assumption | default | unit | drives |
+|---|---|---|---|
+| Shifts per week | `1` | full 7-day blocks/wk | bill, pay, weekly GP |
+| Shift days per shift | `4` | days/shift | per-shift duration |
+| Working days per shift | `4` | days/shift | clinic-day pattern |
+| Orientation days per placement | `0` | one-time | |
+| OT hours per working day | `0` | hours | |
+| On-call nights per shift | `0` | nights/shift | outpatient has no call |
+| Call-back hours per call night | `0` | hours/night | |
+| Adv. shift bonus days per shift | `0` | days/shift | |
+| Other bonus days per shift | `0` | days/shift | |
+| Weeks billable per year | `48` | weeks/yr | |
+
+**On nuance not modeled in the CRM**: real shift instances vary — one
+provider may work 6 days / 5 nights and another 8 days / 9 nights on
+the same opportunity. That per-instance variance is a scheduling-app
+concern, not a CRM concern. The CRM's job is to model **typical**
+economics for opportunity-level negotiation; the future scheduling app
+handles day-level granularity using the opportunity's rates as
+defaults.
 
 ### E.3 Computed outputs
 
@@ -607,6 +643,18 @@ utilization values to `opportunities.modeling_assumptions` jsonb) and
 - **Provider Onboarding / Onboarding Tasks** → AppSheet feature that was
   never built. Will be developed properly in the future suite (provider
   portal + CRM Phase 3 credentialing). No action in Phase 2.
+- **Source partner relationship not in workbook** → AppSheet's
+  Opportunities tab has no field representing whether an opportunity is
+  contracted directly with a hospital or subcontracted from a LOCUMs
+  partner. The CRM models this via `organizations.type` (`'hospital'` vs
+  `'locums_partner'`) and `opportunities.source_partner_id` (nullable FK
+  to `organizations`). Legacy AppSheet records: the two Billings Clinic
+  opportunities are sourced from Medicus Healthcare Solutions; Oxford
+  and Birmingham are direct. The import script handles this via a
+  hardcoded `SOURCE_PARTNER_OVERRIDES` map keyed by AppSheet
+  `Opportunity ID` — see the script source for the current mapping.
+  Going forward, the source partner is set explicitly by the user during
+  opportunity creation in the CRM.
 
 ### Resolved at Stage 2 review
 
@@ -634,10 +682,15 @@ utilization values to `opportunities.modeling_assumptions` jsonb) and
   | source field (AppSheet) | source value | target field (CRM) | target value |
   |---|---|---|---|
   | Title (Providers) | `M.D.` | `position_type` | `MD` |
+  | Title (Providers) | `M.D.*` | `position_type` | `MD` |
   | Title (Opportunities) | `M.D.` | `position_type` | `MD` |
   | Specialty (Providers, Opportunities) | `Gastro.` | `specialty` | `GI` |
   | Shift Type (Opportunities) | `Inpatient` | `setting` | `inpatient` |
   | Shift Type (Opportunities) | `Outpatient` | `setting` | `outpatient` |
+
+  The trailing asterisk on `M.D.*` (observed on a single provider row)
+  appears to be a presentational footnote convention in AppSheet — not
+  a credential distinction. Same `position_type` as `M.D.`.
 
   AppSheet's derived `Provider Type` column (`M.D./Gastro.`) is a
   concatenation, not stored in the CRM — the constituent `position_type`

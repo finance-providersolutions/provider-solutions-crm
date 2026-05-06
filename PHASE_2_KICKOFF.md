@@ -137,6 +137,13 @@ A. Database
    atomic schema change. Phase 3 will create the private credentials
    bucket as part of 0003_credentialing.sql at its own phase boundary.
 
+   Seed insert (also inside 0002_pipelines.sql): one organization row
+   for 'Medicus Healthcare Solutions' with type = 'locums_partner'.
+   This is the only LOCUMs partner currently relevant to legacy
+   AppSheet data; additional partners are added through the CRM UI
+   as relationships develop. Use ON CONFLICT DO NOTHING so the
+   migration is safely re-runnable.
+
 B. AppSheet import script
 3. scripts/import-from-appsheet.js — Node script run locally by Jason.
    Reads _reference/Snapshot of AppSheet Data - Provider Solutions
@@ -180,6 +187,17 @@ B. AppSheet import script
      mapping AppSheet image path → Supabase Storage path. Read at
      start (if exists) to skip already-uploaded images; written
      atomically at end.
+   - Source partner override: after importing organizations and
+     opportunities, apply a hardcoded SOURCE_PARTNER_OVERRIDES map
+     (declared at the top of the script, well-commented) to set
+     source_partner_id on affected opportunities. Current entries:
+     the two Billings Clinic opportunities (looked up by AppSheet
+     Opportunity ID) → 'Medicus Healthcare Solutions'. The script
+     resolves the partner by name to its organizations.id and
+     patches the rows. If a target partner organization doesn't
+     exist (e.g., the seed insert from the migration didn't run),
+     the script logs ERROR and exits non-zero. Map updates are
+     committed to the script file like any other code change.
    - Per-run log at _reference/import-run-YYYY-MM-DD-HHMM.log
      (UTC or local — pick one and document it). Plain text, one
      issue per line, severity prefix (INFO / WARN / ERROR). Top of
@@ -231,14 +249,30 @@ D. GP modeler component
 
 E. Pages
 7. src/pages/Opportunities.jsx — dual view: kanban-by-stage AND
-   table. Filters: stage, specialty, source partner, state. "New
+   table. Filters: stage, specialty, state, and source partner.
+   The source-partner filter is a dropdown over partner
+   organizations (type = 'locums_partner') with options "All" /
+   "Direct (no partner)" / one entry per partner. When an
+   opportunity row or kanban card has a source_partner_id, render
+   a small "via [partner name]" badge near the hospital name. The
+   same badge appears on the opportunity detail header and any
+   other place opportunities show up as a list-row preview. "New
    opportunity" dialog. Row/card click → /opportunities/:id.
+
+   Opportunity create/edit dialog: required "Hospital" picker —
+   searchable combobox over organizations where type = 'hospital',
+   with "+ Create new hospital" inline action. Optional "Source
+   partner" picker — searchable combobox over organizations where
+   type = 'locums_partner', with "+ Create new partner" inline
+   action; defaults to "Direct (no partner)". Both pickers use the
+   shadcn Command primitive.
 8. src/pages/Opportunity.jsx — detail page. Edit core fields, edit
    the rate structure (collapsible section), set stage / probability
    / next_action_date, view associated activities and tasks,
    placeholder section for "Suggested providers" (Phase 4), and the
    GPModeler component. Logo of the parent organization rendered in
-   the header.
+   the header, with the via-partner badge alongside the hospital
+   name when source_partner_id is set.
 9. src/pages/Providers.jsx — table with status filter, specialty
    filter, free-text search. Provider photo thumbnail in each row.
    "New provider" dialog.
