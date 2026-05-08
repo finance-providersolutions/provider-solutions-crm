@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronsUpDown, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -70,6 +71,8 @@ export default function TaskFormDialog({
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [createId, setCreateId] = useState(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const deleteTriggerRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -120,10 +123,8 @@ export default function TaskFormDialog({
     }));
   }
 
-  async function handleDelete() {
+  async function performDelete() {
     if (!task || !onDeleted) return;
-    const confirmed = window.confirm('Delete this task? This cannot be undone.');
-    if (!confirmed) return;
     setDeleting(true);
     try {
       await onDeleted(task.id);
@@ -132,6 +133,7 @@ export default function TaskFormDialog({
     } catch (err) {
       console.error('TaskFormDialog delete failed', err);
       toast.error(err?.message || 'Could not delete task');
+      throw err;
     } finally {
       setDeleting(false);
     }
@@ -293,40 +295,53 @@ export default function TaskFormDialog({
             )}
           </Field>
 
-          {/* Footer with destructive Delete left-aligned (edit mode
-              only) and Cancel + Save right-aligned. Matches the
-              destructive pattern on detail pages — separated from
-              the primary save action so it's hard to misclick. */}
-          <DialogFooter className="sm:justify-between gap-2">
+          {/* Phone: Delete (top, full-width) → Cancel → Save (bottom, closest to thumb).
+              Desktop: Delete left, [Cancel, Save] inline right. Bypasses DialogFooter
+              because its flex-col-reverse default would push Delete to the bottom. */}
+          <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               {isEdit && onDeleted && (
                 <Button
+                  ref={deleteTriggerRef}
                   type="button"
                   variant="ghost"
-                  onClick={handleDelete}
+                  onClick={() => setConfirmDeleteOpen(true)}
                   disabled={submitting || deleting}
-                  className="text-danger hover:bg-danger/10 hover:text-danger font-mono uppercase tracking-[0.1em] text-xs"
+                  className="w-full sm:w-auto text-danger hover:bg-danger/10 hover:text-danger font-mono uppercase tracking-[0.1em] text-xs"
                 >
                   <Trash2 className="w-4 h-4 mr-1" />
                   {deleting ? 'Deleting…' : 'Delete'}
                 </Button>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting || deleting}>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                disabled={submitting || deleting}
+                className="w-full sm:w-auto"
+              >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={submitting || deleting}
-                className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+                className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
               >
                 {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create'}
               </Button>
             </div>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        triggerRef={deleteTriggerRef}
+        title="Delete this task?"
+        onConfirm={performDelete}
+      />
     </Dialog>
   );
 }

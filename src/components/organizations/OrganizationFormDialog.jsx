@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -211,7 +211,7 @@ export default function OrganizationFormDialog({ open, onOpenChange, org, initia
             </Field>
             <Field label="State">
               <Select value={values.state || undefined} onValueChange={(v) => setValues(s => ({ ...s, state: v }))}>
-                <SelectTrigger className="bg-bg border-border text-text w-[110px]">
+                <SelectTrigger className="bg-bg border-border text-text w-full md:w-[110px]">
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[260px]">
@@ -222,7 +222,7 @@ export default function OrganizationFormDialog({ open, onOpenChange, org, initia
               </Select>
             </Field>
             <Field label="ZIP">
-              <Input value={values.zip} onChange={set('zip')} className="bg-bg border-border text-text w-[100px]" />
+              <Input value={values.zip} onChange={set('zip')} className="bg-bg border-border text-text w-full md:w-[100px]" />
             </Field>
           </div>
 
@@ -235,7 +235,7 @@ export default function OrganizationFormDialog({ open, onOpenChange, org, initia
 
                 <div className="flex flex-wrap gap-6">
                   <div className="space-y-1.5">
-                    <Label className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
+                    <Label className="block font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
                       Logo
                     </Label>
                     <ImageUpload
@@ -251,7 +251,7 @@ export default function OrganizationFormDialog({ open, onOpenChange, org, initia
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
+                    <Label className="block font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
                       Facility image
                     </Label>
                     <ImageUpload
@@ -301,23 +301,27 @@ export default function OrganizationFormDialog({ open, onOpenChange, org, initia
             />
           </Field>
 
-          <DialogFooter>
+          {/* Phone: Cancel (top, full-width) → Save (bottom, closest to thumb).
+              Desktop: Cancel + Save inline right. Bypasses DialogFooter
+              because its flex-col-reverse default would place Save above Cancel on phone. */}
+          <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
             <Button
               type="button"
               variant="ghost"
               onClick={() => onOpenChange(false)}
               disabled={submitting}
+              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+              className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
             >
               {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

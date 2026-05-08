@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -16,6 +16,7 @@ import {
   POSITION_TYPES, PROVIDER_SOURCES, PROVIDER_STATUSES,
   SPECIALTIES, US_STATES,
 } from '@/utils/constants';
+import { scrollToFirstError } from '@/utils/form';
 
 const EMPTY = {
   first_name:        '',
@@ -50,6 +51,7 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
   const [values, setValues] = useState(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [parentId, setParentId] = useState(null);
+  const formRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +87,7 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
     e.preventDefault();
     if (!values.first_name.trim() && !values.last_name.trim()) {
       toast.error('Please enter at least a first or last name');
+      scrollToFirstError(formRef, ['first_name']);
       return;
     }
     setSubmitting(true);
@@ -137,10 +140,10 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-start gap-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex flex-col items-start gap-6 md:flex-row">
             <div className="space-y-1.5">
-              <Label className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
+              <Label className="block font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
                 Photo
               </Label>
               <ImageUpload
@@ -154,18 +157,18 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
                 size="lg"
               />
             </div>
-            <div className="flex-1 grid grid-cols-2 gap-3">
-              <Field label="First name">
-                <Input value={values.first_name} onChange={set('first_name')} autoFocus className="bg-bg border-border text-text" />
+            <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-3 md:flex-1">
+              <Field label="First name" required>
+                <Input name="first_name" value={values.first_name} onChange={set('first_name')} autoFocus className="bg-bg border-border text-text" />
               </Field>
-              <Field label="Last name">
-                <Input value={values.last_name} onChange={set('last_name')} className="bg-bg border-border text-text" />
+              <Field label="Last name" required>
+                <Input name="last_name" value={values.last_name} onChange={set('last_name')} className="bg-bg border-border text-text" />
               </Field>
               <Field label="Middle name">
-                <Input value={values.middle_name} onChange={set('middle_name')} className="bg-bg border-border text-text" />
+                <Input name="middle_name" value={values.middle_name} onChange={set('middle_name')} className="bg-bg border-border text-text" />
               </Field>
               <Field label="Suffix">
-                <Input value={values.suffix} onChange={set('suffix')} placeholder="Jr., III, etc." className="bg-bg border-border text-text" />
+                <Input name="suffix" value={values.suffix} onChange={set('suffix')} placeholder="Jr., III, etc." className="bg-bg border-border text-text" />
               </Field>
             </div>
           </div>
@@ -207,7 +210,7 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
             </Field>
             <Field label="Home state">
               <Select value={values.home_state || undefined} onValueChange={(v) => setValues(s => ({ ...s, home_state: v }))}>
-                <SelectTrigger className="bg-bg border-border text-text w-[110px]"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectTrigger className="bg-bg border-border text-text w-full md:w-[110px]"><SelectValue placeholder="—" /></SelectTrigger>
                 <SelectContent className="max-h-[260px]">
                   {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
@@ -262,18 +265,33 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
             </span>
           </label>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+          {/* Phone: Cancel-above-Save full-width, sticky to dialog scroll bottom (decision #5).
+              Desktop: inline-right, no stick. Bypasses DialogFooter to control col-direction
+              and to attach max-sm:sticky cleanly. Shadow gives elevation cue without depending
+              on the dialog's exact padding. */}
+          <div className="
+            flex flex-col gap-2
+            sm:flex-row sm:items-center sm:justify-end sm:gap-2 sm:pt-2
+            max-sm:sticky max-sm:bottom-0 max-sm:py-3
+            max-sm:bg-surface max-sm:border-t max-sm:border-border
+            max-sm:shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.3)]
+          ">
+            <Button
+              type="button" variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+              className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
             >
               {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

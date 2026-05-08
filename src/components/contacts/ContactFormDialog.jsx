@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -94,7 +94,7 @@ export default function ContactFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface border-border text-text max-w-xl">
+      <DialogContent className="bg-surface border-border text-text max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">
             {isEdit ? 'Edit contact' : 'New contact'}
@@ -123,11 +123,11 @@ export default function ContactFormDialog({
             </Field>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="First name">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Field label="First name" required>
               <Input value={values.first_name} onChange={set('first_name')} autoFocus className="bg-bg border-border text-text" />
             </Field>
-            <Field label="Last name">
+            <Field label="Last name" required>
               <Input value={values.last_name} onChange={set('last_name')} className="bg-bg border-border text-text" />
             </Field>
           </div>
@@ -166,18 +166,27 @@ export default function ContactFormDialog({
             <Textarea value={values.notes} onChange={set('notes')} rows={3} className="bg-bg border-border text-text" />
           </Field>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+          {/* Phone: Cancel (top, full-width) → Save (bottom, closest to thumb).
+              Desktop: Cancel + Save inline right. Bypasses DialogFooter
+              because its flex-col-reverse default would place Save above Cancel on phone. */}
+          <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+              className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
             >
               {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

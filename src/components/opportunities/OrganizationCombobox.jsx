@@ -40,6 +40,7 @@ export default function OrganizationCombobox({
   allowCreateNew = false,
   placeholder = 'Select organization',
   disabled = false,
+  name,
 }) {
   const { data, loading, create } = useOrganizations();
   const [open, setOpen] = useState(false);
@@ -73,6 +74,7 @@ export default function OrganizationCombobox({
             role="combobox"
             aria-expanded={open}
             disabled={disabled}
+            name={name}
             className="w-full justify-between bg-bg border-border text-text font-normal"
           >
             <span className={cn(!selected && 'text-text-muted')}>

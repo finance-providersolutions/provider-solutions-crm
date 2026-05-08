@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogDescription,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -16,6 +16,7 @@ import {
   OPPORTUNITY_SETTINGS, OPPORTUNITY_STAGES, POSITION_TYPES,
   SPECIALTIES, US_STATES,
 } from '@/utils/constants';
+import { scrollToFirstError } from '@/utils/form';
 
 // Schema-mirrored EMPTY. NOT NULL DEFAULT 0 columns
 // (bill_orientation_hourly, bill_advanced_shift_bonus_daily,
@@ -100,6 +101,7 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
   const [values, setValues] = useState(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [createId, setCreateId] = useState(null);
+  const formRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -148,13 +150,18 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
     e.preventDefault();
     if (!values.organization_id) {
       toast.error('Hospital is required');
+      scrollToFirstError(formRef, ['organization_id']);
       return;
     }
-    if (values.on_call_enabled
-        && (numOrNull(values.bill_on_call_nightly) === null
-            || numOrNull(values.pay_on_call_nightly) === null)) {
-      toast.error('On-call is enabled — bill and pay nightly rates are required');
-      return;
+    if (values.on_call_enabled) {
+      const missing = [];
+      if (numOrNull(values.bill_on_call_nightly) === null) missing.push('bill_on_call_nightly');
+      if (numOrNull(values.pay_on_call_nightly)  === null) missing.push('pay_on_call_nightly');
+      if (missing.length > 0) {
+        toast.error('On-call is enabled — bill and pay nightly rates are required');
+        scrollToFirstError(formRef, missing);
+        return;
+      }
     }
     setSubmitting(true);
     try {
@@ -227,12 +234,13 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
 
           <Section title="Basics">
             <Field label="Hospital" required>
               <OrganizationCombobox
                 type="hospital"
+                name="organization_id"
                 value={values.organization_id || null}
                 onChange={(id) => setValues(v => ({ ...v, organization_id: id ?? '' }))}
                 required
@@ -295,7 +303,7 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
               </Field>
               <Field label="State">
                 <Select value={values.location_state || undefined} onValueChange={setVal('location_state')}>
-                  <SelectTrigger className="bg-bg border-border text-text w-[110px]"><SelectValue placeholder="—" /></SelectTrigger>
+                  <SelectTrigger className="bg-bg border-border text-text w-full md:w-[110px]"><SelectValue placeholder="—" /></SelectTrigger>
                   <SelectContent className="max-h-[260px]">
                     {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
@@ -384,10 +392,10 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Field label="Bill on-call / night ($)" required>
-                    <Input type="number" step="0.01" min="0" value={values.bill_on_call_nightly} onChange={set('bill_on_call_nightly')} className="bg-bg border-border text-text" />
+                    <Input name="bill_on_call_nightly" type="number" step="0.01" min="0" value={values.bill_on_call_nightly} onChange={set('bill_on_call_nightly')} className="bg-bg border-border text-text" />
                   </Field>
                   <Field label="Pay on-call / night ($)" required>
-                    <Input type="number" step="0.01" min="0" value={values.pay_on_call_nightly} onChange={set('pay_on_call_nightly')} className="bg-bg border-border text-text" />
+                    <Input name="pay_on_call_nightly" type="number" step="0.01" min="0" value={values.pay_on_call_nightly} onChange={set('pay_on_call_nightly')} className="bg-bg border-border text-text" />
                   </Field>
                   <Field label="Bill call-back hourly ($)">
                     <Input type="number" step="0.01" min="0" value={values.bill_call_back_hourly} onChange={set('bill_call_back_hourly')} className="bg-bg border-border text-text" />
@@ -443,18 +451,31 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
             </Field>
           </Section>
 
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
+          {/* Phone: Cancel-above-Save full-width, sticky to dialog scroll bottom (decision #5).
+              Desktop: inline-right, no stick. Canonical pattern from B4. */}
+          <div className="
+            flex flex-col gap-2
+            sm:flex-row sm:items-center sm:justify-end sm:gap-2 sm:pt-2
+            max-sm:sticky max-sm:bottom-0 max-sm:py-3
+            max-sm:bg-surface max-sm:border-t max-sm:border-border
+            max-sm:shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.3)]
+          ">
+            <Button
+              type="button" variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+              className="w-full sm:w-auto bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
             >
               {submitting ? 'Saving…' : isEdit ? 'Save changes' : 'Create'}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
