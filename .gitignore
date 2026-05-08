@@ -15,7 +15,6 @@ dist-ssr/
 .vscode/*
 !.vscode/extensions.json
 .idea/
-.claude/
 *.suo
 *.ntvs*
 *.njsproj
@@ -38,3 +37,6 @@ lerna-debug.log*
 # Supabase local dev
 supabase/.branches
 supabase/.temp
+
+# Local Claude Code session config — regenerated per session, not committed
+.claude/
