@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
 import OrganizationFormDialog from '@/components/organizations/OrganizationFormDialog';
 import ContactFormDialog from '@/components/contacts/ContactFormDialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
@@ -36,13 +37,15 @@ export default function Organization() {
   const [editOpen, setEditOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteContact, setPendingDeleteContact] = useState(null);
+  const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
+  const deleteOrgTriggerRef = useRef(null);
+  const contactDeleteTriggerRef = useRef(null);
+  const activityDeleteTriggerRef = useRef(null);
 
-  async function handleDelete() {
+  async function performDelete() {
     if (!org) return;
-    const confirmed = window.confirm(
-      `Delete "${org.name}"?\n\nThis will also delete its contacts and activities. This cannot be undone.`,
-    );
-    if (!confirmed) return;
     try {
       await remove(org.id);
       toast.success('Organization deleted');
@@ -50,30 +53,41 @@ export default function Organization() {
     } catch (err) {
       console.error('delete organization', err);
       toast.error(err?.message || 'Could not delete');
+      throw err;
     }
   }
 
-  async function handleDeleteContact(c) {
-    const confirmed = window.confirm(`Delete contact "${fmtName(c)}"?`);
-    if (!confirmed) return;
+  function handleDeleteContact(c, triggerEl) {
+    contactDeleteTriggerRef.current = triggerEl ?? null;
+    setPendingDeleteContact(c);
+  }
+
+  async function performDeleteContact() {
+    if (!pendingDeleteContact) return;
     try {
-      await contacts.remove(c.id);
+      await contacts.remove(pendingDeleteContact.id);
       toast.success('Contact deleted');
     } catch (err) {
       console.error('delete contact', err);
       toast.error(err?.message || 'Could not delete contact');
+      throw err;
     }
   }
 
-  async function handleDeleteActivity(a) {
-    const confirmed = window.confirm('Delete this activity entry?');
-    if (!confirmed) return;
+  function handleDeleteActivity(a, triggerEl) {
+    activityDeleteTriggerRef.current = triggerEl ?? null;
+    setPendingDeleteActivity(a);
+  }
+
+  async function performDeleteActivity() {
+    if (!pendingDeleteActivity) return;
     try {
-      await activities.remove(a.id);
+      await activities.remove(pendingDeleteActivity.id);
       toast.success('Activity deleted');
     } catch (err) {
       console.error('delete activity', err);
       toast.error(err?.message || 'Could not delete activity');
+      throw err;
     }
   }
 
@@ -222,7 +236,7 @@ export default function Organization() {
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
                   <button
-                    onClick={() => handleDeleteContact(c)}
+                    onClick={(e) => handleDeleteContact(c, e.currentTarget)}
                     className="text-text-muted hover:text-danger p-1"
                     aria-label="Delete contact"
                     type="button"
@@ -259,7 +273,8 @@ export default function Organization() {
 
         <div className="border-t border-border/50 pt-6">
           <Button
-            onClick={handleDelete}
+            ref={deleteOrgTriggerRef}
+            onClick={() => setConfirmDeleteOpen(true)}
             variant="ghost"
             className="text-danger hover:bg-danger/10 hover:text-danger font-mono uppercase tracking-[0.1em] text-xs"
           >
@@ -287,6 +302,31 @@ export default function Organization() {
           if (editingContact) await contacts.update(editingContact.id, payload);
           else await contacts.create(payload);
         }}
+      />
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        triggerRef={deleteOrgTriggerRef}
+        title={org ? `Delete "${org.name}"?` : 'Delete?'}
+        description="This will also delete its contacts and activities. This cannot be undone."
+        onConfirm={performDelete}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(pendingDeleteContact)}
+        onOpenChange={(open) => { if (!open) setPendingDeleteContact(null); }}
+        triggerRef={contactDeleteTriggerRef}
+        title={pendingDeleteContact ? `Delete contact "${fmtName(pendingDeleteContact)}"?` : 'Delete contact?'}
+        onConfirm={performDeleteContact}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(pendingDeleteActivity)}
+        onOpenChange={(open) => { if (!open) setPendingDeleteActivity(null); }}
+        triggerRef={activityDeleteTriggerRef}
+        title="Delete this activity entry?"
+        onConfirm={performDeleteActivity}
       />
     </div>
   );

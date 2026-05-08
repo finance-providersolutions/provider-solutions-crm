@@ -73,7 +73,7 @@ export default function ActivityFeed({
 
             {onDelete && (
               <button
-                onClick={() => onDelete(a)}
+                onClick={(e) => onDelete(a, e.currentTarget)}
                 className="opacity-0 group-hover:opacity-100 transition-opacity text-text-muted hover:text-danger p-1"
                 aria-label="Delete activity"
                 type="button"

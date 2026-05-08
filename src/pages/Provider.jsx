@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
 import Thumb from '@/components/uploads/Thumb';
 import ProviderFormDialog from '@/components/providers/ProviderFormDialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
@@ -29,14 +30,13 @@ export default function Provider() {
   const activities = useActivities({ providerId: id });
 
   const [editOpen, setEditOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
+  const deleteProviderTriggerRef = useRef(null);
+  const activityDeleteTriggerRef = useRef(null);
 
-  async function handleDelete() {
+  async function performDelete() {
     if (!provider) return;
-    const name = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || 'this provider';
-    const confirmed = window.confirm(
-      `Delete "${name}"?\n\nThis will also delete their activities, tasks, and placements. This cannot be undone.`,
-    );
-    if (!confirmed) return;
     try {
       await remove(provider.id);
       toast.success('Provider deleted');
@@ -44,18 +44,24 @@ export default function Provider() {
     } catch (err) {
       console.error('delete provider', err);
       toast.error(err?.message || 'Could not delete');
+      throw err;
     }
   }
 
-  async function handleDeleteActivity(a) {
-    const confirmed = window.confirm('Delete this activity entry?');
-    if (!confirmed) return;
+  function handleDeleteActivity(a, triggerEl) {
+    activityDeleteTriggerRef.current = triggerEl ?? null;
+    setPendingDeleteActivity(a);
+  }
+
+  async function performDeleteActivity() {
+    if (!pendingDeleteActivity) return;
     try {
-      await activities.remove(a.id);
+      await activities.remove(pendingDeleteActivity.id);
       toast.success('Activity deleted');
     } catch (err) {
       console.error('delete activity', err);
       toast.error(err?.message || 'Could not delete activity');
+      throw err;
     }
   }
 
@@ -209,7 +215,8 @@ export default function Provider() {
 
         <div className="border-t border-border/50 pt-6">
           <Button
-            onClick={handleDelete}
+            ref={deleteProviderTriggerRef}
+            onClick={() => setConfirmDeleteOpen(true)}
             variant="ghost"
             className="text-danger hover:bg-danger/10 hover:text-danger font-mono uppercase tracking-[0.1em] text-xs"
           >
@@ -226,6 +233,23 @@ export default function Provider() {
           await update(provider.id, payload);
           await refetch();
         }}
+      />
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        triggerRef={deleteProviderTriggerRef}
+        title={provider ? `Delete "${[provider.first_name, provider.last_name].filter(Boolean).join(' ') || 'this provider'}"?` : 'Delete?'}
+        description="This will also delete their activities, tasks, and placements. This cannot be undone."
+        onConfirm={performDelete}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(pendingDeleteActivity)}
+        onOpenChange={(open) => { if (!open) setPendingDeleteActivity(null); }}
+        triggerRef={activityDeleteTriggerRef}
+        title="Delete this activity entry?"
+        onConfirm={performDeleteActivity}
       />
     </div>
   );

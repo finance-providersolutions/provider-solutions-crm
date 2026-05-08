@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import GPModeler from '@/components/opportunities/GPModeler';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
@@ -28,14 +29,13 @@ export default function Opportunity() {
   const activities = useActivities({ opportunityId: id });
 
   const [editOpen, setEditOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
+  const deleteOppTriggerRef = useRef(null);
+  const activityDeleteTriggerRef = useRef(null);
 
-  async function handleDelete() {
+  async function performDelete() {
     if (!opp) return;
-    const label = opp.title || opp.name || 'this opportunity';
-    const confirmed = window.confirm(
-      `Delete "${label}"?\n\nThis will also delete its activities, tasks, and placements. This cannot be undone.`,
-    );
-    if (!confirmed) return;
     try {
       await remove(opp.id);
       toast.success('Opportunity deleted');
@@ -43,18 +43,24 @@ export default function Opportunity() {
     } catch (err) {
       console.error('delete opportunity', err);
       toast.error(err?.message || 'Could not delete');
+      throw err;
     }
   }
 
-  async function handleDeleteActivity(a) {
-    const confirmed = window.confirm('Delete this activity entry?');
-    if (!confirmed) return;
+  function handleDeleteActivity(a, triggerEl) {
+    activityDeleteTriggerRef.current = triggerEl ?? null;
+    setPendingDeleteActivity(a);
+  }
+
+  async function performDeleteActivity() {
+    if (!pendingDeleteActivity) return;
     try {
-      await activities.remove(a.id);
+      await activities.remove(pendingDeleteActivity.id);
       toast.success('Activity deleted');
     } catch (err) {
       console.error('delete activity', err);
       toast.error(err?.message || 'Could not delete activity');
+      throw err;
     }
   }
 
@@ -239,7 +245,8 @@ export default function Opportunity() {
 
         <div className="border-t border-border/50 pt-6">
           <Button
-            onClick={handleDelete}
+            ref={deleteOppTriggerRef}
+            onClick={() => setConfirmDeleteOpen(true)}
             variant="ghost"
             className="text-danger hover:bg-danger/10 hover:text-danger font-mono uppercase tracking-[0.1em] text-xs"
           >
@@ -256,6 +263,23 @@ export default function Opportunity() {
           await update(opp.id, payload);
           await refetch();
         }}
+      />
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        triggerRef={deleteOppTriggerRef}
+        title={opp ? `Delete "${opp.title || opp.name || 'this opportunity'}"?` : 'Delete?'}
+        description="This will also delete its activities, tasks, and placements. This cannot be undone."
+        onConfirm={performDelete}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(pendingDeleteActivity)}
+        onOpenChange={(open) => { if (!open) setPendingDeleteActivity(null); }}
+        triggerRef={activityDeleteTriggerRef}
+        title="Delete this activity entry?"
+        onConfirm={performDeleteActivity}
       />
     </div>
   );
