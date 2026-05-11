@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Building2, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
+import { Building2, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle.jsx';
 import { cn } from '@/lib/utils';
 
 const ITEMS = [
-  { path: '/',              label: 'Home',          icon: Home        },
   { path: '/organizations', label: 'Organizations', icon: Building2   },
   { path: '/contacts',      label: 'Contacts',      icon: Users       },
   { path: '/providers',     label: 'Providers',     icon: Stethoscope },

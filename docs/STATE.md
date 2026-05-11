@@ -102,4 +102,6 @@ Three fonts. DM Serif Display for h1 and h2 only (font-display utility). DM Sans
 
 Radius is 5px globally via the --radius variable.
 
+Header icon buttons are 36×36, slightly smaller than the dialog close X at 40×40 — a context-specific choice justified by the dedicated chrome strip where no adjacent interactive elements compete for thumb taps.
+
 Brand components are hand-mirrored from the financial dashboard for visual recognizability. Non-brand UI (tables, forms, dialogs, lists, detail panes) uses Tailwind utilities and shadcn/ui primitives freely with no dashboard-class-pattern constraint.
