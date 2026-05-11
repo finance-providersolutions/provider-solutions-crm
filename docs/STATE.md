@@ -8,7 +8,7 @@ Internal CRM for Provider Solutions, LLC (LOCUMs physician staffing). Second app
 
 ## Current phase
 
-Phase 1 is shipped. Phase 2 is nearly complete — the schema migration, the AppSheet import (run live, 33 rows in), the image-upload plumbing, the providers list and detail pages, the opportunities list and detail pages, the GP modeler with setting-aware utilization defaults, a travel-cost extension that nets PS-covered travel out of GP, and the Tasks page with three-tab views and quick-complete have all landed and been signed off. An updated pipeline-aware Home dashboard is the only remaining Phase 2 item. Phase 3 (credentialing) and Phase 4 (matching) are further out. See ROADMAP.md for the precise split between done and remaining.
+Phase 1 is shipped. Phase 2 is nearly complete — the schema migration, the AppSheet import (run live, 33 rows in), the image-upload plumbing, the providers list and detail pages, the opportunities list and detail pages, the GP modeler with setting-aware utilization defaults, a travel-cost extension that nets PS-covered travel out of GP, and the Tasks page with three-tab views and quick-complete have all landed and been signed off. An updated pipeline-aware Home dashboard is the only remaining Phase 2 item. Phase 3 (credentialing) and Phase 4 (matching) are further out. See ROADMAP.md for the precise split between done and remaining. Separately, a local-only `crm-redesign-prototype` branch carries accepted design directions from a recent prototype session, awaiting an implementation slice that comes next.
 
 ## Hosting and infrastructure
 
