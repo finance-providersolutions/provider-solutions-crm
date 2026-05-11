@@ -257,13 +257,13 @@ export default function Organizations() {
         <>
           <div
             className={cn(
-              'fixed inset-0 z-[300] bg-black/50 backdrop-blur-sm transition-opacity',
+              'fixed inset-0 z-50 bg-black/50 backdrop-blur-sm transition-opacity',
               filterOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
             )}
             onClick={() => setFilterOpen(false)}
           />
           <aside
-            className="fixed top-0 h-full z-[400] flex flex-col border-l border-border bg-surface transition-[right] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            className="fixed top-0 h-full z-50 flex flex-col border-l border-border bg-surface transition-[right] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
             style={{
               width: FILTER_PANEL_W,
               right: filterOpen ? 0 : -FILTER_PANEL_W,
