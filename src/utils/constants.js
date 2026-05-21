@@ -56,6 +56,22 @@ export const SPECIALTIES = [
   { value: 'GI', label: 'Gastroenterology' },
 ];
 
+// Short-form labels used on dense list-view surfaces (e.g., the
+// Opportunities card meta row, where the position+specialty+setting
+// triplet shares one line). Keys are full SPECIALTIES.label values;
+// missing entries fall back to the full label. A future "dropdown-
+// list management" slice will move this into an admin-editable
+// table alongside the canonical SPECIALTIES list.
+export const SPECIALTY_ABBR = {
+  Gastroenterology: 'Gastro',
+};
+
+export const specialtyAbbrFor = (specialtyValue) => {
+  const full = labelFor(SPECIALTIES, specialtyValue);
+  return SPECIALTY_ABBR[full] ?? full;
+};
+
+
 // CHECK-constrained on providers.source (BUILD_PLAN §4.1).
 export const PROVIDER_SOURCES = [
   { value: 'referral',   label: 'Referral'   },

@@ -1,23 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { MoreVertical, Pencil, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import Thumb from '@/components/uploads/Thumb';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useOrganizations } from '@/hooks/useOrganizations';
+import { useTasks } from '@/hooks/useTasks';
 import {
-  OPPORTUNITY_STAGES, SPECIALTIES, US_STATES, labelFor,
+  OPPORTUNITY_SETTINGS, OPPORTUNITY_STAGES, POSITION_TYPES, SPECIALTIES,
+  US_STATES, labelFor, specialtyAbbrFor,
 } from '@/utils/constants';
 import { fmtDate } from '@/utils/formatters';
+import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
 // Pipeline stages get distinct treatment per state. Lead/qualified
@@ -38,16 +44,29 @@ export const STAGE_BADGE = {
 const PARTNER_FILTER_ANY    = '__any__';
 const PARTNER_FILTER_DIRECT = '__direct__';
 
-const SORT_DEFAULT = 'default';
-const SORT_NEWEST  = 'newest';
+// Sort options for the filter-panel sort row. Default mirrors the
+// hook's order — next-action soonest, then most recently created.
+// All non-default sorts run client-side in the rows useMemo against
+// the already-fetched dataset, including the hospital sort that
+// orders by a joined-table column — staying client-side avoids the
+// extra round-trip and the PostgREST shape gymnastics that ordering
+// on `organizations(name)` would otherwise require.
+const SORT_DEFAULT  = 'default';
+const SORT_NEWEST   = 'newest';
+const SORT_HOSPITAL = 'hospital';
+const SORT_TITLE    = 'title';
+const SORT_LOCATION = 'location';
 const SORT_OPTIONS = [
-  { value: SORT_DEFAULT, label: 'Next action (soonest)' },
-  { value: SORT_NEWEST,  label: 'Newest first'          },
+  { value: SORT_DEFAULT,  label: 'Next action (soonest)'         },
+  { value: SORT_NEWEST,   label: 'Newest first'                  },
+  { value: SORT_HOSPITAL, label: 'Hospital (A→Z)'                },
+  { value: SORT_TITLE,    label: 'Title (A→Z)'                   },
+  { value: SORT_LOCATION, label: 'Location (state, then city)'   },
 ];
 
-// Chrome heights — bar 1 is owned by PageHeader (Slice 1, 58px).
-// Bar 2 is the list subheader; bar 3 is the conditional search bar
-// that appears below bar 2 only when searchOpen is true.
+// Chrome heights — bar 1 is owned by PageHeader (58px). Bar 2 is the
+// list subheader; bar 3 is the conditional search bar that appears
+// below bar 2 only when searchOpen is true.
 const BAR1_H = 58;
 const BAR2_H = 56;
 const BAR3_H = 52;
@@ -55,18 +74,25 @@ const FILTER_PANEL_W = 320;
 
 export default function Opportunities() {
   const navigate = useNavigate();
-  const { data, loading, error, create } = useOpportunities();
+  const { data, loading, error, create, update, remove } = useOpportunities();
   const orgs = useOrganizations();
+  // Single batched fetch of all open tasks. Bucketed below into a
+  // per-opportunity { count, hasOverdue } map so each card renders
+  // its count from local state — no per-card query and no N+1.
+  const openTasks = useTasks({ status: 'open' });
 
   const [search, setSearch]       = useState('');
   const [stageFilter, setStage]   = useState('all');
   const [specFilter, setSpec]     = useState('all');
   const [stateFilter, setState]   = useState('all');
   const [partnerFilter, setPartner] = useState(PARTNER_FILTER_ANY);
-  const [sort, setSort]           = useState(SORT_DEFAULT);
+  const [sort, setSort] = useState(SORT_DEFAULT);
   const [createOpen, setCreateOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);     // opportunity row being edited
+  const [deleteTarget, setDeleteTarget] = useState(null); // opportunity row pending delete confirm
+  const deleteTriggerRef = useRef(null);                  // last-clicked kebab — focus restore after delete
 
   const filtersActive = stageFilter !== 'all'
     || specFilter !== 'all'
@@ -108,6 +134,23 @@ export default function Opportunities() {
     [orgs.data],
   );
 
+  // Bucket open tasks by opportunity_id into a Map<id, {count,
+  // hasOverdue}>. Overdue = due_date strictly before today (date-
+  // only, no time component on the column). Computed once per
+  // openTasks.data change, not per card render.
+  const taskSummaryByOppId = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const map = new Map();
+    for (const t of openTasks.data) {
+      if (!t.opportunity_id) continue;
+      const prev = map.get(t.opportunity_id) || { count: 0, hasOverdue: false };
+      prev.count += 1;
+      if (t.due_date && t.due_date < today) prev.hasOverdue = true;
+      map.set(t.opportunity_id, prev);
+    }
+    return map;
+  }, [openTasks.data]);
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = data.filter(o => {
@@ -128,12 +171,32 @@ export default function Opportunities() {
       return haystack.includes(q);
     });
 
-    // Client-side sort. The hook fetches in default order
-    // (next_action_date asc, created_at desc tiebreak), so when
+    // Client-side sort. The hook fetches in default order, so when
     // sort === SORT_DEFAULT we don't need to re-sort.
+    const cmpStr = (a, b) => (a || '').toLowerCase().localeCompare((b || '').toLowerCase());
     if (sort === SORT_NEWEST) {
       return [...filtered].sort((a, b) =>
         (b.created_at || '').localeCompare(a.created_at || ''));
+    }
+    if (sort === SORT_HOSPITAL) {
+      return [...filtered].sort((a, b) =>
+        cmpStr(a.organization?.name, b.organization?.name));
+    }
+    if (sort === SORT_TITLE) {
+      return [...filtered].sort((a, b) =>
+        cmpStr(a.title || a.name, b.title || b.name));
+    }
+    if (sort === SORT_LOCATION) {
+      // State first, then city. Falls back to the parent org's state/
+      // city when the opportunity-level fields are null (mirrors the
+      // location_state filter logic above and the location string in
+      // the card itself).
+      const stateOf = (o) => o.location_state || o.organization?.state || '';
+      const cityOf  = (o) => o.location_city  || o.organization?.city  || '';
+      return [...filtered].sort((a, b) => {
+        const s = cmpStr(stateOf(a), stateOf(b));
+        return s !== 0 ? s : cmpStr(cityOf(a), cityOf(b));
+      });
     }
     return filtered;
   }, [data, search, stageFilter, specFilter, stateFilter, partnerFilter, sort]);
@@ -226,78 +289,52 @@ export default function Opportunities() {
         style={{ paddingTop: bodyPaddingTop }}
       >
         <div className="max-w-6xl mx-auto py-8">
-          <div className="bg-surface border border-border rounded relative overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Hospital</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Title</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Specialty</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Location</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Stage</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Source</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Next action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-text-muted py-10 font-mono text-xs uppercase tracking-[0.1em]">Loading…</TableCell></TableRow>
-                )}
-                {!loading && error && (
-                  <TableRow><TableCell colSpan={7} className="text-center text-danger py-10 font-mono text-xs">{error.message}</TableCell></TableRow>
-                )}
-                {!loading && !error && rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12">
-                      <div className="text-text-dim mb-3">
-                        {data.length === 0 ? 'No opportunities yet.' : 'No matches for current filters.'}
-                      </div>
-                      {data.length === 0 && (
-                        <Button
-                          onClick={() => setCreateOpen(true)}
-                          variant="outline"
-                          className="border-accent text-accent hover:bg-accent-dim font-mono uppercase tracking-[0.1em] text-xs"
-                        >
-                          <Plus className="w-4 h-4 mr-1" /> Add the first one
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!loading && !error && rows.map(o => (
-                  <TableRow
-                    key={o.id}
-                    onClick={() => navigate(`/opportunities/${o.id}`)}
-                    className="border-border cursor-pointer hover:bg-surface2 transition-colors"
-                  >
-                    <TableCell className="text-text font-medium">{o.organization?.name ?? '—'}</TableCell>
-                    <TableCell className="text-text-dim">{o.title || o.name || '—'}</TableCell>
-                    <TableCell className="text-text-dim">
-                      {o.specialty ? labelFor(SPECIALTIES, o.specialty) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim">
-                      {[o.location_city, o.location_state].filter(Boolean).join(', ')
-                        || [o.organization?.city, o.organization?.state].filter(Boolean).join(', ')
-                        || <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {o.stage ? (
-                        <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', STAGE_BADGE[o.stage])}>
-                          {labelFor(OPPORTUNITY_STAGES, o.stage)}
-                        </Badge>
-                      ) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim text-sm">
-                      {o.source_partner?.name || <span className="text-text-muted">Direct</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim font-mono text-xs">
-                      {o.next_action_date ? fmtDate(o.next_action_date) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {loading && (
+            <EmptyContainer>
+              <div className="font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+                Loading…
+              </div>
+            </EmptyContainer>
+          )}
+          {!loading && error && (
+            <EmptyContainer>
+              <div className="text-danger font-mono text-xs">{error.message}</div>
+            </EmptyContainer>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <EmptyContainer>
+              <div className="text-text-dim mb-3 font-mono text-xs uppercase tracking-[0.1em]">
+                {data.length === 0 ? 'No opportunities yet.' : 'No matches for current filters.'}
+              </div>
+              {data.length === 0 && (
+                <Button
+                  onClick={() => setCreateOpen(true)}
+                  variant="outline"
+                  className="border-accent text-accent hover:bg-accent-dim font-mono uppercase tracking-[0.1em] text-xs"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add the first one
+                </Button>
+              )}
+            </EmptyContainer>
+          )}
+
+          {!loading && !error && rows.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {rows.map(o => (
+                <OpportunityCard
+                  key={o.id}
+                  opportunity={o}
+                  taskSummary={taskSummaryByOppId.get(o.id)}
+                  onClick={() => navigate(`/opportunities/${o.id}`)}
+                  onEdit={() => setEditTarget(o)}
+                  onDelete={(triggerEl) => {
+                    deleteTriggerRef.current = triggerEl;
+                    setDeleteTarget(o);
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           {!loading && rows.length > 0 && (
             <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
@@ -410,7 +447,212 @@ export default function Opportunities() {
           navigate(`/opportunities/${row.id}`);
         }}
       />
+
+      {/* Edit dialog driven by the card kebab; same dialog as create
+          mode, with `opportunity` prop flipping it to edit. */}
+      <OpportunityFormDialog
+        open={Boolean(editTarget)}
+        onOpenChange={(next) => { if (!next) setEditTarget(null); }}
+        opportunity={editTarget}
+        onSave={async (payload) => {
+          try {
+            await update(editTarget.id, payload);
+            setEditTarget(null);
+          } catch (err) {
+            console.error('Opportunity update failed', err);
+            toast.error(err?.message || 'Update failed.');
+          }
+        }}
+      />
+
+      {/* Delete confirm driven by the card kebab. Hard-delete cascades
+          to activities, tasks, and placements per the schema; the
+          confirm copy spells that out. */}
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => { if (!next) setDeleteTarget(null); }}
+        triggerRef={deleteTriggerRef}
+        title={deleteTarget
+          ? `Delete "${deleteTarget.title || deleteTarget.name || 'this opportunity'}"?`
+          : 'Delete?'}
+        description="This will also delete its activities, tasks, and placements. This cannot be undone."
+        onConfirm={async () => {
+          try {
+            await remove(deleteTarget.id);
+            setDeleteTarget(null);
+          } catch (err) {
+            console.error('Opportunity delete failed', err);
+            toast.error(err?.message || 'Delete failed.');
+            throw err; // keep ConfirmDeleteDialog open on error
+          }
+        }}
+      />
     </>
+  );
+}
+
+// Single card shape rendered at every width. Pass-4 layout:
+//   Row 1 — opportunity title (accent teal) + stage badge inline
+//           right, with an absolute-positioned kebab in the card's
+//           top-right corner above them (visible at every width).
+//   Row 2 — hospital name (white sans).
+//   Row 3 — city, ST (mono muted blue, 13px) + task count right-
+//           aligned ("N tasks", accent teal, danger-red numeral
+//           when at least one open task is past due_date).
+//   Row 4 — position · specialty · setting (white mono, smaller,
+//           not uppercase).
+// Logo anchored at left of rows 2-4, top-aligned with row 2.
+// Logo grows 64 → 72 → 80 with the viewport. Source channel is
+// NOT on the card — it remains a filter dimension and stays on
+// the detail page.
+function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelete }) {
+  const orgName = o.organization?.name ?? '—';
+  const titleLine = o.title || o.name || '—';
+  const locationParts = [o.location_city, o.location_state].filter(Boolean);
+  const orgLocationParts = [o.organization?.city, o.organization?.state].filter(Boolean);
+  const location = locationParts.length
+    ? locationParts.join(', ')
+    : orgLocationParts.join(', ');
+  const positionSpecSetting = [
+    o.position_type ? labelFor(POSITION_TYPES, o.position_type) : null,
+    o.specialty ? specialtyAbbrFor(o.specialty) : null,
+    o.setting ? labelFor(OPPORTUNITY_SETTINGS, o.setting) : null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      className="relative bg-surface border border-border rounded p-4 sm:p-5 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none flex flex-col gap-3"
+    >
+      {/* Kebab — floats in the absolute top-right corner of the
+          card at all widths, including 380. Row 1 is right-padded
+          to clear it. */}
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
+        <CardKebab onEdit={onEdit} onDelete={onDelete} />
+      </div>
+
+      {/* Row 1 — opportunity title (accent teal) + stage badge inline
+          right. Right-padded to clear the absolute kebab. */}
+      <div className="flex items-start gap-2 min-w-0 pr-10 sm:pr-12">
+        <h3 className="flex-1 min-w-0 font-display text-[17px] sm:text-[19px] lg:text-[21px] text-accent leading-tight truncate">
+          {titleLine}
+        </h3>
+        {o.stage && (
+          <Badge
+            variant="outline"
+            className={cn(
+              'flex-shrink-0 mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em]',
+              STAGE_BADGE[o.stage],
+            )}
+          >
+            {labelFor(OPPORTUNITY_STAGES, o.stage)}
+          </Badge>
+        )}
+      </div>
+
+      {/* Logo + meta-block. Logo is top-aligned with row 2 (hospital
+          name). Logo size grows with viewport. */}
+      <div className="flex items-start gap-3 sm:gap-4">
+        <Thumb
+          path={o.organization?.logo_path}
+          bucket="organization-logos"
+          alt={orgName}
+          fallback={initialsFor(orgName)}
+          size="lg"
+          shape="square"
+          className="md:h-[72px] md:w-[72px] lg:h-20 lg:w-20"
+        />
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          {/* Row 2 — hospital name. Left only; no right indicator. */}
+          <p className="text-text text-[16px] md:text-[17px] lg:text-[18px] leading-tight truncate">
+            {orgName}
+          </p>
+
+          {/* Row 3 — city/ST (muted blue) + stage badge (right). */}
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="flex-1 min-w-0 font-mono text-[13px] text-text-muted leading-snug truncate">
+              {location || ''}
+            </p>
+            {taskSummary?.count > 0 && (
+              <p className="flex-shrink-0 font-mono text-[12px] text-accent leading-snug whitespace-nowrap">
+                <span className={cn(taskSummary.hasOverdue && 'text-danger font-medium')}>
+                  {taskSummary.count}
+                </span>
+                {' '}task{taskSummary.count === 1 ? '' : 's'}
+              </p>
+            )}
+          </div>
+
+          {/* Row 4 — position · specialty · setting (white mono,
+              smaller, not uppercase). Hidden when no data. The task
+              count moved up to row 3 in pass 4. */}
+          {positionSpecSetting && (
+            <p className="font-mono text-[11px] md:text-[12px] text-text leading-snug truncate">
+              {positionSpecSetting}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Small wrapper around DropdownMenu so the trigger stops propagation
+// and the menu items also call stopPropagation — keyboard and click
+// events on the kebab must not bubble up into the card's onClick
+// (which would navigate to the detail page mid-action). The button
+// itself is inline in normal flow now (both variants place it
+// inline with the title row or in a right-anchored indicator
+// cluster) — no absolute positioning.
+function CardKebab({ onEdit, onDelete }) {
+  const triggerRef = useRef(null);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          aria-label="Opportunity actions"
+          className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded text-text-dim hover:text-accent hover:bg-accent-dim transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+        >
+          <MoreVertical className="w-[18px] h-[18px]" strokeWidth={1.5} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={4}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-surface border-border"
+      >
+        <DropdownMenuItem
+          onSelect={() => onEdit?.()}
+          className="cursor-pointer focus:bg-accent-dim focus:text-accent"
+        >
+          <Pencil className="w-4 h-4 mr-2" strokeWidth={1.5} />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => onDelete?.(triggerRef.current)}
+          className="cursor-pointer text-danger focus:bg-danger/15 focus:text-danger"
+        >
+          <Trash2 className="w-4 h-4 mr-2" strokeWidth={1.5} />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function EmptyContainer({ children }) {
+  return (
+    <div className="bg-surface border border-border rounded flex flex-col items-center justify-center text-center px-6 py-20 min-h-[280px]">
+      {children}
+    </div>
   );
 }
 
