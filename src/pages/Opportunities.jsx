@@ -549,9 +549,12 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
   ) : null;
 
   // Tasks badge + kebab pair, used in row 1 of mobile and the top
-  // of the right cluster on wide. Same node in both layouts.
+  // of the right cluster on wide. Same node in both layouts; gap
+  // is tighter on mobile (badge has only a digit, so the kebab can
+  // sit closer) and roomier at md+ where the badge widens to "N
+  // tasks" and benefits from extra breathing room.
   const tasksAndKebab = (
-    <div className="flex items-center gap-2 flex-shrink-0">
+    <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
       {tasksBadge}
       <CardKebab onEdit={onEdit} onDelete={onDelete} />
     </div>
@@ -595,9 +598,13 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
           className="h-20 w-20 text-base flex-shrink-0"
         />
         <div className="flex-1 min-w-0 flex flex-col">
-          {/* Row 1 — position · spec · setting + tasks/kebab */}
+          {/* Row 1 — position · spec · setting + tasks/kebab.
+              tracking-tight compresses the mono letter-spacing on
+              mobile so "M.D. · Gastro · Inpatient" takes less
+              horizontal real estate — gives row 1 more breathing
+              room next to the tasks pill and kebab. */}
           <div className="flex items-center gap-2 min-w-0">
-            <p className="flex-1 min-w-0 font-mono text-[11px] text-text leading-none truncate">
+            <p className="flex-1 min-w-0 font-mono text-[11px] tracking-tight text-text leading-none truncate">
               {positionSpecSetting || ''}
             </p>
             {tasksAndKebab}
