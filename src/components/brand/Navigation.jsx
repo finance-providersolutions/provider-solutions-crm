@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 
 const ITEMS = [
   { path: '/organizations', label: 'Organizations', icon: Building2   },
-  { path: '/contacts',      label: 'Contacts',      icon: Users       },
-  { path: '/providers',     label: 'Providers',     icon: Stethoscope },
   { path: '/opportunities', label: 'Opportunities', icon: Briefcase   },
+  { path: '/providers',     label: 'Providers',     icon: Stethoscope },
+  { path: '/contacts',      label: 'Contacts',      icon: Users       },
   { path: '/tasks',         label: 'Tasks',         icon: ListTodo    },
 ];
 
