@@ -531,19 +531,28 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
     o.setting ? labelFor(OPPORTUNITY_SETTINGS, o.setting) : null,
   ].filter(Boolean).join(' · ');
 
-  // Tasks-count + kebab pair, used in row 1 of mobile and the top
-  // of the right cluster on wide. Pulls the count text styling out
-  // so both layouts share the same node.
+  // Tasks-count badge — outlined pill mirroring the stage badge's
+  // visual language. Mobile shows just the digit (compact circle);
+  // md+ adds the word "task" / "tasks" so the pill widens to match
+  // the wider layout's available space. Numeral renders in accent
+  // teal normally; switches to danger red with medium weight when
+  // at least one open task linked to this opportunity is overdue.
+  const tasksBadge = taskSummary?.count > 0 ? (
+    <span className="inline-flex items-center justify-center h-6 px-2 min-w-[24px] border border-border rounded-full font-mono text-[11px] leading-none whitespace-nowrap">
+      <span className={cn(taskSummary.hasOverdue ? 'text-danger font-medium' : 'text-accent')}>
+        {taskSummary.count}
+      </span>
+      <span className="hidden md:inline ml-1 text-text-dim">
+        task{taskSummary.count === 1 ? '' : 's'}
+      </span>
+    </span>
+  ) : null;
+
+  // Tasks badge + kebab pair, used in row 1 of mobile and the top
+  // of the right cluster on wide. Same node in both layouts.
   const tasksAndKebab = (
     <div className="flex items-center gap-2 flex-shrink-0">
-      {taskSummary?.count > 0 && (
-        <p className="font-mono text-[12px] text-accent leading-none whitespace-nowrap">
-          <span className={cn(taskSummary.hasOverdue && 'text-danger font-medium')}>
-            {taskSummary.count}
-          </span>
-          {' '}task{taskSummary.count === 1 ? '' : 's'}
-        </p>
-      )}
+      {tasksBadge}
       <CardKebab onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
