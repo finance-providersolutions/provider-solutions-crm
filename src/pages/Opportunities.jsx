@@ -491,20 +491,32 @@ export default function Opportunities() {
   );
 }
 
-// Single card shape rendered at every width. Pass-4 layout:
-//   Row 1 — opportunity title (accent teal) + stage badge inline
-//           right, with an absolute-positioned kebab in the card's
-//           top-right corner above them (visible at every width).
-//   Row 2 — hospital name (white sans).
-//   Row 3 — city, ST (mono muted blue, 13px) + task count right-
-//           aligned ("N tasks", accent teal, danger-red numeral
-//           when at least one open task is past due_date).
-//   Row 4 — position · specialty · setting (white mono, smaller,
-//           not uppercase).
-// Logo anchored at left of rows 2-4, top-aligned with row 2.
-// Logo grows 64 → 72 → 80 with the viewport. Source channel is
-// NOT on the card — it remains a filter dimension and stays on
-// the detail page.
+// Tune-up: two-layout responsive card. Below md the card is a
+// stacked block; at md and above it switches to a single horizontal
+// row. Same content in both shapes, arranged differently.
+//
+// Below md (stacked):
+//   Logo (80x80) on the left, anchored at top, spans the right
+//   meta-block's height. The meta-block to its right stacks four
+//   rows:
+//     row 1 — position * specialty * setting (white mono) + tasks
+//             count + kebab, right-aligned on the same row
+//     row 2 — opportunity title (accent teal, font-display, primary)
+//     row 3 — hospital name (white sans)
+//     row 4 — city, ST (brighter muted blue) + stage badge right
+//
+// At md and above (horizontal row):
+//   Logo (~56-60px) on far left, vertically centered. To its right,
+//   two text clusters side by side and one right-anchored indicator
+//   cluster:
+//     left cluster   — hospital name on top / city ST below
+//     center cluster — position * specialty * setting on top /
+//                      title (accent teal, larger) below
+//     right cluster  — tasks count + kebab on top / stage badge below
+//
+// Source channel still off the card. Open task count source
+// unchanged (useTasks bucketed at page level). Whole-card tap and
+// kebab behavior unchanged.
 function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelete }) {
   const orgName = o.organization?.name ?? '—';
   const titleLine = o.title || o.name || '—';
@@ -519,43 +531,51 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
     o.setting ? labelFor(OPPORTUNITY_SETTINGS, o.setting) : null,
   ].filter(Boolean).join(' · ');
 
+  // Tasks-count + kebab pair, used in row 1 of mobile and the top
+  // of the right cluster on wide. Pulls the count text styling out
+  // so both layouts share the same node.
+  const tasksAndKebab = (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      {taskSummary?.count > 0 && (
+        <p className="font-mono text-[12px] text-accent leading-none whitespace-nowrap">
+          <span className={cn(taskSummary.hasOverdue && 'text-danger font-medium')}>
+            {taskSummary.count}
+          </span>
+          {' '}task{taskSummary.count === 1 ? '' : 's'}
+        </p>
+      )}
+      <CardKebab onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  );
+
+  const stageBadge = o.stage ? (
+    <Badge
+      variant="outline"
+      className={cn(
+        'flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.1em]',
+        STAGE_BADGE[o.stage],
+      )}
+    >
+      {labelFor(OPPORTUNITY_STAGES, o.stage)}
+    </Badge>
+  ) : null;
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-      className="relative bg-surface border border-border rounded p-4 sm:p-5 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none flex flex-col gap-3"
+      className="relative bg-surface border border-border rounded p-3 md:p-5 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none"
     >
-      {/* Kebab — floats in the absolute top-right corner of the
-          card at all widths, including 380. Row 1 is right-padded
-          to clear it. */}
-      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
-        <CardKebab onEdit={onEdit} onDelete={onDelete} />
-      </div>
-
-      {/* Row 1 — opportunity title (accent teal) + stage badge inline
-          right. Right-padded to clear the absolute kebab. */}
-      <div className="flex items-start gap-2 min-w-0 pr-10 sm:pr-12">
-        <h3 className="flex-1 min-w-0 font-display text-[17px] sm:text-[19px] lg:text-[21px] text-accent leading-tight truncate">
-          {titleLine}
-        </h3>
-        {o.stage && (
-          <Badge
-            variant="outline"
-            className={cn(
-              'flex-shrink-0 mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em]',
-              STAGE_BADGE[o.stage],
-            )}
-          >
-            {labelFor(OPPORTUNITY_STAGES, o.stage)}
-          </Badge>
-        )}
-      </div>
-
-      {/* Logo + meta-block. Logo is top-aligned with row 2 (hospital
-          name). Logo size grows with viewport. */}
-      <div className="flex items-start gap-3 sm:gap-4">
+      {/* ── Mobile / narrow layout (below md) ─────────────────── */}
+      {/* items-center vertically balances the four-row text block
+          against the 80x80 logo so the card height is set by the
+          logo with even top/bottom padding. Explicit per-row margins
+          drive the asymmetric rhythm: tight from row 1 to row 2,
+          larger from row 2 to row 3 (title-to-hospital is the
+          identity break), tight from row 3 to row 4. */}
+      <div className="md:hidden flex items-center gap-3">
         <Thumb
           path={o.organization?.logo_path}
           bucket="organization-logos"
@@ -563,37 +583,81 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
           fallback={initialsFor(orgName)}
           size="lg"
           shape="square"
-          className="md:h-[72px] md:w-[72px] lg:h-20 lg:w-20"
+          className="h-20 w-20 text-base flex-shrink-0"
         />
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          {/* Row 2 — hospital name. Left only; no right indicator. */}
-          <p className="text-text text-[16px] md:text-[17px] lg:text-[18px] leading-tight truncate">
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Row 1 — position · spec · setting + tasks/kebab */}
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="flex-1 min-w-0 font-mono text-[11px] text-text leading-none truncate">
+              {positionSpecSetting || ''}
+            </p>
+            {tasksAndKebab}
+          </div>
+          {/* Row 2 — title (accent teal, primary). Negative top
+              margin compensates for DM Serif Display's intrinsic
+              line-box padding above the cap-height — even with
+              leading-none the font reserves ~5-6px of whitespace
+              above the visible glyph. -mt-1 pulls the title's line
+              box up so the cap-height sits visually flush against
+              row 1's baseline. */}
+          <h3 className="-mt-1 font-display text-[18px] text-accent leading-none truncate">
+            {titleLine}
+          </h3>
+          {/* Row 3 — hospital name (white sans). mt-3 creates the
+              disproportionate title-to-hospital break — visibly
+              the largest gap on the card. */}
+          <p className="mt-3 text-text text-[15px] font-medium leading-none truncate">
             {orgName}
           </p>
-
-          {/* Row 3 — city/ST (muted blue) + stage badge (right). */}
-          <div className="flex items-center gap-2 min-w-0">
-            <p className="flex-1 min-w-0 font-mono text-[13px] text-text-muted leading-snug truncate">
+          {/* Row 4 — city/ST (brighter muted blue) + stage badge.
+              mt-1 keeps city tight under hospital. */}
+          <div className="mt-1 flex items-center gap-2 min-w-0">
+            <p className="flex-1 min-w-0 font-mono text-[13px] text-text-dim leading-none truncate">
               {location || ''}
             </p>
-            {taskSummary?.count > 0 && (
-              <p className="flex-shrink-0 font-mono text-[12px] text-accent leading-snug whitespace-nowrap">
-                <span className={cn(taskSummary.hasOverdue && 'text-danger font-medium')}>
-                  {taskSummary.count}
-                </span>
-                {' '}task{taskSummary.count === 1 ? '' : 's'}
-              </p>
-            )}
+            {stageBadge}
           </div>
+        </div>
+      </div>
 
-          {/* Row 4 — position · specialty · setting (white mono,
-              smaller, not uppercase). Hidden when no data. The task
-              count moved up to row 3 in pass 4. */}
+      {/* ── Wide / horizontal layout (md and up) ──────────────── */}
+      <div className="hidden md:flex items-center gap-5">
+        <Thumb
+          path={o.organization?.logo_path}
+          bucket="organization-logos"
+          alt={orgName}
+          fallback={initialsFor(orgName)}
+          size="md"
+          shape="square"
+          className="h-14 w-14 lg:h-16 lg:w-16 text-sm flex-shrink-0"
+        />
+
+        {/* Left text cluster — hospital + city/ST */}
+        <div className="min-w-0 basis-1/3 flex flex-col gap-0.5">
+          <p className="text-text text-[16px] lg:text-[17px] font-medium leading-tight truncate">
+            {orgName}
+          </p>
+          <p className="font-mono text-[12px] lg:text-[13px] text-text-dim leading-snug truncate">
+            {location || ''}
+          </p>
+        </div>
+
+        {/* Center text cluster — position·spec·setting + title */}
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           {positionSpecSetting && (
-            <p className="font-mono text-[11px] md:text-[12px] text-text leading-snug truncate">
+            <p className="font-mono text-[12px] text-text leading-snug truncate">
               {positionSpecSetting}
             </p>
           )}
+          <h3 className="font-display text-[18px] lg:text-[20px] text-accent leading-tight truncate">
+            {titleLine}
+          </h3>
+        </div>
+
+        {/* Right indicator cluster — tasks/kebab on top, stage below */}
+        <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
+          {tasksAndKebab}
+          {stageBadge}
         </div>
       </div>
     </div>
