@@ -8,6 +8,7 @@ import SectionHeader from '@/components/brand/SectionHeader';
 import OrganizationFormDialog from '@/components/organizations/OrganizationFormDialog';
 import ContactFormDialog from '@/components/contacts/ContactFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { CardKebab } from '@/components/ui/card-kebab';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
@@ -203,7 +204,25 @@ export default function Organization() {
         {!contacts.loading && !contacts.error && contacts.data.length > 0 && (
           <ul className="bg-surface border border-border rounded divide-y divide-border/40 overflow-hidden mb-10">
             {contacts.data.map(c => (
-              <li key={c.id} className="p-4 flex items-start gap-3 group">
+              // Slice 4: row tap navigates to the contact detail page;
+              // per-row actions live in an always-visible kebab on the
+              // right (Edit / Delete via ConfirmDeleteDialog). Replaces
+              // the prior hover-revealed Pencil + Trash2 icons that
+              // touch devices never saw. Visual affordance matches the
+              // Contacts list card so the user learns one pattern.
+              <li
+                key={c.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/contacts/${c.id}`)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate(`/contacts/${c.id}`);
+                  }
+                }}
+                className="p-4 flex items-start gap-3 cursor-pointer transition-colors hover:bg-surface2 focus-visible:bg-surface2 focus-visible:outline-none"
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-text">{fmtName(c)}</span>
@@ -216,33 +235,34 @@ export default function Organization() {
                   </div>
                   <div className="flex items-center gap-4 flex-wrap text-sm mt-1 text-text-dim font-mono">
                     {c.email && (
-                      <a href={`mailto:${c.email}`} className="hover:text-accent">{c.email}</a>
+                      <a
+                        href={`mailto:${c.email}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-accent"
+                      >
+                        {c.email}
+                      </a>
                     )}
                     {c.phone && (
-                      <a href={`tel:${c.phone}`} className="hover:text-accent">{fmtPhone(c.phone)}</a>
+                      <a
+                        href={`tel:${c.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-accent"
+                      >
+                        {fmtPhone(c.phone)}
+                      </a>
                     )}
                   </div>
                   {c.notes && (
                     <p className="text-text-dim text-sm mt-1 whitespace-pre-wrap">{c.notes}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => { setEditingContact(c); setContactOpen(true); }}
-                    className="text-text-muted hover:text-accent p-1"
-                    aria-label="Edit contact"
-                    type="button"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => handleDeleteContact(c, e.currentTarget)}
-                    className="text-text-muted hover:text-danger p-1"
-                    aria-label="Delete contact"
-                    type="button"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                <div className="flex-shrink-0">
+                  <CardKebab
+                    ariaLabel="Contact actions"
+                    onEdit={() => { setEditingContact(c); setContactOpen(true); }}
+                    onDelete={(triggerEl) => handleDeleteContact(c, triggerEl)}
+                  />
                 </div>
               </li>
             ))}

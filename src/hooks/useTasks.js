@@ -17,10 +17,23 @@ import { useAuth } from '@/hooks/useAuth';
 //   - organizationId / opportunityId / providerId: scope to tasks
 //     parented on a specific record (used by TasksSection on the
 //     three detail pages).
+// Opportunity-parented tasks also pull the opportunity's parent
+// hospital name (a nested join: tasks → opportunity → organization)
+// so the card and detail page can surface the hospital alongside
+// the opportunity title — the opportunity title alone is rarely
+// enough to identify which hospital a task belongs to.
+//
+// opportunities has TWO FKs to organizations (organization_id for
+// the hospital, source_partner_id for the optional LOCUMs partner)
+// so the nested embed must name the constraint explicitly — same
+// pattern useOpportunities uses.
 const SELECT_WITH_PARENTS = `
   *,
   organization:organizations(id, name),
-  opportunity:opportunities(id, title, name),
+  opportunity:opportunities(
+    id, title, name,
+    organization:organizations!opportunities_organization_id_fkey(name)
+  ),
   provider:providers(id, first_name, last_name)
 `;
 
@@ -113,4 +126,36 @@ export function useTasks(filters = {}) {
     () => ({ data, loading, error, refetch, create, update, remove, quickComplete }),
     [data, loading, error, refetch, create, update, remove, quickComplete],
   );
+}
+
+// Singular fetch for the Task detail page (Slice 4). Mirrors the
+// useProvider(id) shape — same eager-join of all three optional
+// parents as the list hook so the detail page renders parent name
+// and link without a second round-trip.
+export function useTask(id) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const refetch = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError(null);
+    const { data: row, error: err } = await supabase
+      .from('tasks')
+      .select(SELECT_WITH_PARENTS)
+      .eq('id', id)
+      .single();
+    if (err) {
+      setError(err);
+      setLoading(false);
+      return;
+    }
+    setData(row);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => { refetch(); }, [refetch]);
+
+  return { data, loading, error, refetch };
 }

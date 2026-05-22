@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Pencil, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import {
@@ -9,10 +9,8 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { CardKebab } from '@/components/ui/card-kebab';
 import Thumb from '@/components/uploads/Thumb';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
 import { useOpportunities } from '@/hooks/useOpportunities';
@@ -556,7 +554,7 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
   const tasksAndKebab = (
     <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
       {tasksBadge}
-      <CardKebab onEdit={onEdit} onDelete={onDelete} />
+      <CardKebab ariaLabel="Opportunity actions" onEdit={onEdit} onDelete={onDelete} />
     </div>
   );
 
@@ -628,7 +626,7 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
           {/* Row 4 — city/ST (brighter muted blue) + stage badge.
               mt-1 keeps city tight under hospital. */}
           <div className="mt-1 flex items-center gap-2 min-w-0">
-            <p className="flex-1 min-w-0 font-mono text-[13px] text-text-dim leading-none truncate">
+            <p className="flex-1 min-w-0 font-mono text-[12px] text-text-dim leading-none truncate">
               {location || ''}
             </p>
             {stageBadge}
@@ -653,7 +651,7 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
           <p className="text-text text-[16px] lg:text-[17px] font-medium leading-tight truncate">
             {orgName}
           </p>
-          <p className="font-mono text-[12px] lg:text-[13px] text-text-dim leading-snug truncate">
+          <p className="font-mono text-[11px] lg:text-[12px] text-text-dim leading-snug truncate">
             {location || ''}
           </p>
         </div>
@@ -677,54 +675,6 @@ function OpportunityCard({ opportunity: o, taskSummary, onClick, onEdit, onDelet
         </div>
       </div>
     </div>
-  );
-}
-
-// Small wrapper around DropdownMenu so the trigger stops propagation
-// and the menu items also call stopPropagation — keyboard and click
-// events on the kebab must not bubble up into the card's onClick
-// (which would navigate to the detail page mid-action). The button
-// itself is inline in normal flow now (both variants place it
-// inline with the title row or in a right-anchored indicator
-// cluster) — no absolute positioning.
-function CardKebab({ onEdit, onDelete }) {
-  const triggerRef = useRef(null);
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          ref={triggerRef}
-          type="button"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          aria-label="Opportunity actions"
-          className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded text-text-dim hover:text-accent hover:bg-accent-dim transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
-        >
-          <MoreVertical className="w-[18px] h-[18px]" strokeWidth={1.5} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        sideOffset={4}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-surface border-border"
-      >
-        <DropdownMenuItem
-          onSelect={() => onEdit?.()}
-          className="cursor-pointer focus:bg-accent-dim focus:text-accent"
-        >
-          <Pencil className="w-4 h-4 mr-2" strokeWidth={1.5} />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => onDelete?.(triggerRef.current)}
-          className="cursor-pointer text-danger focus:bg-danger/15 focus:text-danger"
-        >
-          <Trash2 className="w-4 h-4 mr-2" strokeWidth={1.5} />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

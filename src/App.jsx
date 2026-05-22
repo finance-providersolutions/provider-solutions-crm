@@ -11,11 +11,13 @@ import Home from '@/pages/Home';
 import Organizations from '@/pages/Organizations';
 import Organization from '@/pages/Organization';
 import Contacts from '@/pages/Contacts';
+import Contact from '@/pages/Contact';
 import Providers from '@/pages/Providers';
 import Provider from '@/pages/Provider';
 import Opportunities from '@/pages/Opportunities';
 import Opportunity from '@/pages/Opportunity';
 import Tasks from '@/pages/Tasks';
+import Task from '@/pages/Task';
 
 function AppShell({ children }) {
   const { signOut } = useAuth();
@@ -51,6 +53,10 @@ export default function App() {
               element={<RequireAuth><AppShell><Contacts /></AppShell></RequireAuth>}
             />
             <Route
+              path="/contacts/:id"
+              element={<RequireAuth><AppShell><Contact /></AppShell></RequireAuth>}
+            />
+            <Route
               path="/providers"
               element={<RequireAuth><AppShell><Providers /></AppShell></RequireAuth>}
             />
@@ -69,6 +75,10 @@ export default function App() {
             <Route
               path="/tasks"
               element={<RequireAuth><AppShell><Tasks /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/tasks/:id"
+              element={<RequireAuth><AppShell><Task /></AppShell></RequireAuth>}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

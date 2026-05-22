@@ -1,22 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { CardKebab } from '@/components/ui/card-kebab';
 import Thumb from '@/components/uploads/Thumb';
 import ProviderFormDialog from '@/components/providers/ProviderFormDialog';
 import { useProviders } from '@/hooks/useProviders';
+import { useTasks } from '@/hooks/useTasks';
 import {
-  POSITION_TYPES, PROVIDER_STATUSES, SPECIALTIES, labelFor,
+  POSITION_TYPES, PROVIDER_STATUSES, SPECIALTIES, labelFor, specialtyAbbrFor,
 } from '@/utils/constants';
+import { fmtName } from '@/utils/formatters';
 import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
@@ -53,13 +55,22 @@ const FILTER_PANEL_W = 320;
 
 export default function Providers() {
   const navigate = useNavigate();
-  const { data, loading, error, create } = useProviders();
+  const { data, loading, error, create, update, remove } = useProviders();
+  // Single batched fetch of all open tasks (same pattern as
+  // Opportunities). Bucketed below into a per-provider
+  // {count, hasOverdue} map so each card reads its count from local
+  // state — no per-card query, no N+1.
+  const openTasks = useTasks({ status: 'open' });
+
   const [search, setSearch]               = useState('');
   const [statusFilter, setStatus]         = useState('all');
   const [specialtyFilter, setSpecialty]   = useState('all');
   const [showArchived, setShowArchived]   = useState(false);
   const [sort, setSort]                   = useState(SORT_DEFAULT);
   const [createOpen, setCreateOpen]       = useState(false);
+  const [editTarget, setEditTarget]       = useState(null);
+  const [deleteTarget, setDeleteTarget]   = useState(null);
+  const deleteTriggerRef                  = useRef(null);
   const [searchOpen, setSearchOpen]       = useState(false);
   const [filterOpen, setFilterOpen]       = useState(false);
 
@@ -96,6 +107,22 @@ export default function Providers() {
     }
   }, [searchOpen]);
 
+  // Bucket open tasks by provider_id into Map<id, {count, hasOverdue}>.
+  // Overdue = due_date strictly before today (date-only). Computed
+  // once per openTasks.data change, not per card render.
+  const taskSummaryByProviderId = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const map = new Map();
+    for (const t of openTasks.data) {
+      if (!t.provider_id) continue;
+      const prev = map.get(t.provider_id) || { count: 0, hasOverdue: false };
+      prev.count += 1;
+      if (t.due_date && t.due_date < today) prev.hasOverdue = true;
+      map.set(t.provider_id, prev);
+    }
+    return map;
+  }, [openTasks.data]);
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = data.filter(p => {
@@ -104,8 +131,8 @@ export default function Providers() {
       if (specialtyFilter !== 'all' && p.specialty !== specialtyFilter) return false;
       if (!q) return true;
       const haystack = [
-        p.first_name, p.last_name, p.email, p.npi,
-        p.home_city, p.home_state,
+        p.first_name, p.middle_name, p.last_name, p.suffix,
+        p.email, p.npi, p.home_city, p.home_state,
       ].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(q);
     });
@@ -115,6 +142,16 @@ export default function Providers() {
     }
     return filtered;
   }, [data, search, statusFilter, specialtyFilter, showArchived, sort]);
+
+  async function handleArchiveToggle(p) {
+    try {
+      await update(p.id, { archived: !p.archived });
+      toast.success(p.archived ? 'Provider unarchived' : 'Provider archived');
+    } catch (err) {
+      console.error('archive toggle', err);
+      toast.error(err?.message || 'Could not update');
+    }
+  }
 
   const bodyPaddingTop =
     `calc(${BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0)}px + env(safe-area-inset-top))`;
@@ -204,93 +241,53 @@ export default function Providers() {
         style={{ paddingTop: bodyPaddingTop }}
       >
         <div className="max-w-6xl mx-auto py-8">
-          <div className="bg-surface border border-border rounded relative overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em] w-[60px]"></TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Name</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Specialty</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Type</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Home</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-text-muted py-10 font-mono text-xs uppercase tracking-[0.1em]">Loading…</TableCell></TableRow>
-                )}
-                {!loading && error && (
-                  <TableRow><TableCell colSpan={6} className="text-center text-danger py-10 font-mono text-xs">{error.message}</TableCell></TableRow>
-                )}
-                {!loading && !error && rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
-                      <div className="text-text-dim mb-3">
-                        {data.length === 0 ? 'No providers yet.' : 'No matches for current filters.'}
-                      </div>
-                      {data.length === 0 && (
-                        <Button
-                          onClick={() => setCreateOpen(true)}
-                          variant="outline"
-                          className="border-accent text-accent hover:bg-accent-dim font-mono uppercase tracking-[0.1em] text-xs"
-                        >
-                          <Plus className="w-4 h-4 mr-1" /> Add the first one
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!loading && !error && rows.map(p => (
-                  <TableRow
-                    key={p.id}
-                    onClick={() => navigate(`/providers/${p.id}`)}
-                    className={cn(
-                      'border-border cursor-pointer hover:bg-surface2 transition-colors',
-                      p.archived && 'opacity-60',
-                    )}
-                  >
-                    <TableCell>
-                      <Thumb
-                        path={p.photo_path}
-                        bucket="provider-photos"
-                        alt={`${p.first_name ?? ''} ${p.last_name ?? ''}`.trim()}
-                        fallback={initialsFor(p)}
-                        size="sm"
-                        shape="circle"
-                      />
-                    </TableCell>
-                    <TableCell className="text-text font-medium">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {[p.first_name, p.last_name].filter(Boolean).join(' ') || '—'}
-                        {p.archived && (
-                          <Badge variant="outline" className="font-mono text-[9px] uppercase tracking-[0.1em] bg-surface2 text-text-muted border-border">
-                            Archived
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-text-dim">
-                      {p.specialty ? labelFor(SPECIALTIES, p.specialty) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim font-mono text-xs">
-                      {p.position_type ? labelFor(POSITION_TYPES, p.position_type) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim">
-                      {[p.home_city, p.home_state].filter(Boolean).join(', ') || <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      {p.status ? (
-                        <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', STATUS_BADGE[p.status])}>
-                          {labelFor(PROVIDER_STATUSES, p.status)}
-                        </Badge>
-                      ) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {loading && (
+            <EmptyContainer>
+              <div className="font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+                Loading…
+              </div>
+            </EmptyContainer>
+          )}
+          {!loading && error && (
+            <EmptyContainer>
+              <div className="text-danger font-mono text-xs">{error.message}</div>
+            </EmptyContainer>
+          )}
+          {!loading && !error && rows.length === 0 && (
+            <EmptyContainer>
+              <div className="text-text-dim mb-3 font-mono text-xs uppercase tracking-[0.1em]">
+                {data.length === 0 ? 'No providers yet.' : 'No matches for current filters.'}
+              </div>
+              {data.length === 0 && (
+                <Button
+                  onClick={() => setCreateOpen(true)}
+                  variant="outline"
+                  className="border-accent text-accent hover:bg-accent-dim font-mono uppercase tracking-[0.1em] text-xs"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add the first one
+                </Button>
+              )}
+            </EmptyContainer>
+          )}
+
+          {!loading && !error && rows.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {rows.map(p => (
+                <ProviderCard
+                  key={p.id}
+                  provider={p}
+                  taskSummary={taskSummaryByProviderId.get(p.id)}
+                  onClick={() => navigate(`/providers/${p.id}`)}
+                  onEdit={() => setEditTarget(p)}
+                  onArchiveToggle={() => handleArchiveToggle(p)}
+                  onDelete={(triggerEl) => {
+                    deleteTriggerRef.current = triggerEl;
+                    setDeleteTarget(p);
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           {!loading && rows.length > 0 && (
             <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
@@ -397,7 +394,232 @@ export default function Providers() {
           navigate(`/providers/${row.id}`);
         }}
       />
+
+      {/* Edit dialog driven by the card kebab. List context — the
+          ProviderFormDialog has no in-dialog Delete, so no
+          hideDeleteAction prop conflict. */}
+      <ProviderFormDialog
+        open={Boolean(editTarget)}
+        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+        provider={editTarget}
+        onSave={async (payload) => {
+          try {
+            await update(editTarget.id, payload);
+            setEditTarget(null);
+          } catch (err) {
+            console.error('Provider update failed', err);
+            toast.error(err?.message || 'Update failed.');
+          }
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => { if (!next) setDeleteTarget(null); }}
+        triggerRef={deleteTriggerRef}
+        title={deleteTarget
+          ? `Delete "${fmtName(deleteTarget)}"?`
+          : 'Delete?'}
+        description="This will also delete their activities, tasks, and placements. This cannot be undone."
+        onConfirm={async () => {
+          try {
+            await remove(deleteTarget.id);
+            setDeleteTarget(null);
+          } catch (err) {
+            console.error('Provider delete failed', err);
+            toast.error(err?.message || 'Delete failed.');
+            throw err;
+          }
+        }}
+      />
     </>
+  );
+}
+
+// Three-row mobile / single-content-cluster wide layout. Providers
+// ARE the leaf record (no parent identifier to surface), so the
+// 4-row Opportunities/Tasks/Contacts pattern compresses to 3. Photo
+// is the strongest logo-slot case in the suite — provider's own
+// image, with initials fallback.
+//
+// Per-page card variations:
+//   - Logo: provider photo, circle shape (matches the detail page's
+//     xl-circle treatment), 80×80 mobile, 56-64px wide.
+//   - Archive lives in the kebab (Edit → Archive/Unarchive → Delete).
+//     The shared CardKebab now takes extraItems for lifecycle actions
+//     that sit between primary and destructive.
+//   - Archived state: opacity-60 on the whole card (the user
+//     explicitly toggled "Show archived" to see these, so the
+//     opacity is confirmation, not the only signal). No inline
+//     "ARCHIVED" label — it would compete for row 1 space without
+//     adding information.
+//
+// Mobile rows (3 total):
+//   1 — position · specialty (mono cap) + tasks pill + kebab
+//   2 — provider name (accent teal, font-display, primary)
+//   3 — home city, ST (mono dim, left) + status badge (right)
+//
+// Wide layout:
+//   photo (left, circle, vertical-centered)
+//   content cluster (flex-1, three stacked rows):
+//     position · spec mono
+//     name (accent teal, font-display, larger)
+//     home city, ST (mono dim)
+//   right cluster (shrink-0, items-end, justify-between):
+//     tasks pill + kebab on top
+//     status badge on bottom
+function ProviderCard({ provider: p, taskSummary, onClick, onEdit, onArchiveToggle, onDelete }) {
+  const name = fmtName(p);
+  const location = [p.home_city, p.home_state].filter(Boolean).join(', ');
+  const positionSpec = [
+    p.position_type ? labelFor(POSITION_TYPES, p.position_type) : null,
+    p.specialty ? specialtyAbbrFor(p.specialty) : null,
+  ].filter(Boolean).join(' · ');
+
+  // Tasks-count pill — same shape as Opportunities. Mobile shows
+  // just the digit (compact circle); md+ adds the word. Numeral
+  // accent teal normally; danger red with medium weight when at
+  // least one linked open task is overdue. The danger-red token
+  // is chosen so it still reads against the parent card's
+  // opacity-60 wash when archived (visual check on render).
+  const tasksBadge = taskSummary?.count > 0 ? (
+    <span className="inline-flex items-center justify-center h-6 px-2 min-w-[24px] border border-border rounded-full font-mono text-[11px] leading-none whitespace-nowrap">
+      <span className={cn(taskSummary.hasOverdue ? 'text-danger font-medium' : 'text-accent')}>
+        {taskSummary.count}
+      </span>
+      <span className="hidden md:inline ml-1 text-text-dim">
+        task{taskSummary.count === 1 ? '' : 's'}
+      </span>
+    </span>
+  ) : null;
+
+  // Kebab's extra item: Archive when archived=false, Unarchive when
+  // true. Sits between Edit and Delete per the CardKebab order
+  // contract. Non-destructive (toggle, reversible).
+  const kebabExtras = [
+    {
+      label: p.archived ? 'Unarchive' : 'Archive',
+      icon: p.archived ? ArchiveRestore : Archive,
+      onSelect: onArchiveToggle,
+    },
+  ];
+
+  const tasksAndKebab = (
+    <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+      {tasksBadge}
+      <CardKebab
+        ariaLabel="Provider actions"
+        onEdit={onEdit}
+        onDelete={onDelete}
+        extraItems={kebabExtras}
+      />
+    </div>
+  );
+
+  const statusBadge = p.status ? (
+    <Badge variant="outline" className={cn(
+      'flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.1em]',
+      STATUS_BADGE[p.status],
+    )}>
+      {labelFor(PROVIDER_STATUSES, p.status)}
+    </Badge>
+  ) : null;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      className={cn(
+        'relative bg-surface border border-border rounded p-3 md:px-5 md:py-3 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none',
+        p.archived && 'opacity-50',
+      )}
+    >
+      {/* ── Mobile / narrow layout (below md) ─────────────────── */}
+      <div className="md:hidden flex items-center gap-3">
+        <Thumb
+          path={p.photo_path}
+          bucket="provider-photos"
+          alt={name}
+          fallback={initialsFor(p)}
+          size="lg"
+          shape="circle"
+          className="h-20 w-20 text-base flex-shrink-0"
+        />
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Row 1 — position · specialty + tasks pill + kebab. */}
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="flex-1 min-w-0 font-mono text-[11px] tracking-tight text-text leading-none truncate">
+              {positionSpec || ''}
+            </p>
+            {tasksAndKebab}
+          </div>
+          {/* Row 2 — provider name (primary). Negative top margin
+              compensates for DM Serif Display's intrinsic line-box
+              padding (same trick as Opportunities/Tasks cards). */}
+          <h3 className="-mt-1 font-display text-[18px] text-accent leading-none truncate">
+            {name}
+          </h3>
+          {/* Row 3 — city, ST + status badge. mt-3 creates the
+              dominant name-to-context break (matches the other
+              cards' rhythm). */}
+          <div className="mt-3 flex items-center gap-2 min-w-0">
+            <p className="flex-1 min-w-0 font-mono text-[12px] text-text-dim leading-none truncate">
+              {location || ''}
+            </p>
+            {statusBadge}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Wide / horizontal layout (md and up) ──────────────── */}
+      <div className="hidden md:flex items-stretch gap-5">
+        <div className="flex-shrink-0 flex items-center">
+          <Thumb
+            path={p.photo_path}
+            bucket="provider-photos"
+            alt={name}
+            fallback={initialsFor(p)}
+            size="md"
+            shape="circle"
+            className="h-12 w-12 lg:h-14 lg:w-14 text-sm"
+          />
+        </div>
+
+        {/* Single content cluster — position/spec / name / city ST.
+            Tight gap matches Contacts' wide-layout density. */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+          {positionSpec && (
+            <p className="font-mono text-[12px] text-text leading-none truncate">
+              {positionSpec}
+            </p>
+          )}
+          <h3 className="font-display text-[18px] lg:text-[20px] text-accent leading-tight truncate">
+            {name}
+          </h3>
+          <p className="font-mono text-[11px] lg:text-[12px] text-text-dim leading-none truncate">
+            {location || <span className="text-text-muted">—</span>}
+          </p>
+        </div>
+
+        {/* Right cluster — tasks pill + kebab on top / status badge
+            pinned bottom. justify-between aligns the two against
+            the card's stretched height. */}
+        <div className="flex-shrink-0 flex flex-col justify-between items-end gap-2">
+          {tasksAndKebab}
+          {statusBadge || <span aria-hidden className="h-[20px] leading-none" />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyContainer({ children }) {
+  return (
+    <div className="bg-surface border border-border rounded flex flex-col items-center justify-center text-center px-6 py-20 min-h-[280px]">
+      {children}
+    </div>
   );
 }
 

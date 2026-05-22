@@ -78,8 +78,31 @@ export function fmtPhone(value) {
   return String(value).trim();
 }
 
-export function fmtName({ first_name, last_name } = {}) {
-  return [first_name, last_name].filter(Boolean).join(' ').trim() || '—';
+// Renders a person's name from the provider/contact field set:
+// "first [middle] last[, suffix]". Middle name is included AS-IS
+// when present — if the field holds "J" it renders "J", if it
+// holds "James" it renders "James" (no force-to-initial).
+// Suffix joins with a comma when present.
+//
+// Schema-aware: providers carry middle_name and suffix; contacts
+// have only first_name + last_name today. fmtName must gracefully
+// degrade to "First Last" when middle/suffix columns are absent or
+// null — the {} default + Boolean filter handles both cases. Trim
+// any double spaces that survive concatenation (defensive — the
+// filter(Boolean).join(' ') path shouldn't produce them, but
+// guards against future field additions).
+//
+// Returns em-dash for entirely-empty input so the UI never renders
+// a blank where a name was expected.
+export function fmtName({ first_name, middle_name, last_name, suffix } = {}) {
+  const base = [first_name, middle_name, last_name]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!base) return '—';
+  const sfx = suffix && String(suffix).trim();
+  return sfx ? `${base}, ${sfx}` : base;
 }
 
 export function fmtInt(value) {

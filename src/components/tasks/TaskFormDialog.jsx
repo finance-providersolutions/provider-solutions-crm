@@ -60,9 +60,21 @@ const EMPTY = {
 // In EDIT mode the locked props are intentionally ignored: editing
 // an existing task should always allow re-parenting, since a task
 // that started on one opportunity might genuinely move to another.
+//
+// Slice 4: the dialog-level Delete button (edit mode only) is now
+// conditional on `hideDeleteAction`. When opened from the new Task
+// detail page (which carries its own page-level Delete at the
+// bottom, mirroring Provider), pass `hideDeleteAction` to suppress
+// the in-dialog Delete so the record has exactly one delete affordance
+// from that entry point. List-context entry points (the Tasks list
+// page kebab, the embedded TasksSection on Opportunity/Provider/
+// Organization detail pages) leave the prop unset and keep the
+// dialog-level Delete visible, since no detail page is involved in
+// those flows.
 export default function TaskFormDialog({
   open, onOpenChange, task, onSave, onDeleted,
   lockedParentColumn, lockedParentId, lockedParentLabel,
+  hideDeleteAction = false,
 }) {
   const { user } = useAuth();
   const isEdit = Boolean(task);
@@ -300,7 +312,7 @@ export default function TaskFormDialog({
               because its flex-col-reverse default would push Delete to the bottom. */}
           <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              {isEdit && onDeleted && (
+              {isEdit && onDeleted && !hideDeleteAction && (
                 <Button
                   ref={deleteTriggerRef}
                   type="button"

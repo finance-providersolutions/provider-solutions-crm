@@ -17,7 +17,7 @@ import {
   POSITION_TYPES, PROVIDER_SOURCES, PROVIDER_STATUSES,
   SPECIALTIES, labelFor,
 } from '@/utils/constants';
-import { fmtDateTime, fmtPhone } from '@/utils/formatters';
+import { fmtDateTime, fmtName, fmtPhone } from '@/utils/formatters';
 import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 import { STATUS_BADGE } from './Providers';
@@ -69,9 +69,10 @@ export default function Provider() {
   if (error)   return <Centered tone="danger">{error.message}</Centered>;
   if (!provider) return <Centered>Provider not found.</Centered>;
 
-  const fullName = [provider.first_name, provider.middle_name, provider.last_name, provider.suffix]
-    .filter(Boolean)
-    .join(' ');
+  // fmtName joins first + middle (as-is) + last + ", suffix" and
+  // returns '—' for entirely-empty input — same shape across cards,
+  // detail pages, and the back-link copy below.
+  const fullName = fmtName(provider);
 
   return (
     <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
@@ -94,7 +95,7 @@ export default function Provider() {
               shape="circle"
             />
             <div>
-              <h1 className="font-display text-4xl text-text leading-tight mb-2">{fullName || '—'}</h1>
+              <h1 className="font-display text-4xl text-text leading-tight mb-2">{fullName}</h1>
               <div className="flex items-center gap-2 flex-wrap">
                 {provider.position_type && (
                   <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-[0.1em] bg-surface2 text-text-dim border-border">
@@ -239,7 +240,7 @@ export default function Provider() {
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
         triggerRef={deleteProviderTriggerRef}
-        title={provider ? `Delete "${[provider.first_name, provider.last_name].filter(Boolean).join(' ') || 'this provider'}"?` : 'Delete?'}
+        title={provider ? `Delete "${fullName !== '—' ? fullName : 'this provider'}"?` : 'Delete?'}
         description="This will also delete their activities, tasks, and placements. This cannot be undone."
         onConfirm={performDelete}
       />

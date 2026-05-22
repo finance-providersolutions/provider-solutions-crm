@@ -1,27 +1,45 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { CardKebab } from '@/components/ui/card-kebab';
+import Thumb from '@/components/uploads/Thumb';
 import ContactFormDialog from '@/components/contacts/ContactFormDialog';
 import { useContacts } from '@/hooks/useContacts';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { CONTACT_ROLES, labelFor } from '@/utils/constants';
-import { fmtName, fmtPhone } from '@/utils/formatters';
+import { fmtName } from '@/utils/formatters';
+import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
+
+// Slice 4 card swap. Same two-layout responsive shape as the
+// Opportunities card; logo slot IS used here because contacts
+// uniformly have a parent org with a logo (inverse of the Tasks
+// decision). The card visually reads as "this person at this
+// hospital."
+//
+// Per-page card variations:
+//   - Role rendered as mono cap label on row 1 (mobile) / top of
+//     center cluster (wide), NOT as a chip. Role is categorization,
+//     not lifecycle state — the badge slot stays empty to keep the
+//     "badge slot = lifecycle state" grammar honest across the suite.
+//   - No parent-scoped indicator. Right cluster on wide is just the
+//     kebab; mobile row 4 right is empty.
+//   - Email/phone summary as a single sub-line; whichever piece is
+//     present renders, em-dash when both are missing.
 
 const SORT_DEFAULT = 'default';
 const SORT_NEWEST  = 'newest';
 const SORT_OPTIONS = [
-  { value: SORT_DEFAULT, label: 'Name (A→Z)' },
-  { value: SORT_NEWEST,  label: 'Newest first'    },
+  { value: SORT_DEFAULT, label: 'Name (A→Z)'    },
+  { value: SORT_NEWEST,  label: 'Newest first'  },
 ];
 
 // Chrome heights — bar 1 is owned by PageHeader (Slice 1, 58px).
@@ -33,12 +51,16 @@ const BAR3_H = 52;
 const FILTER_PANEL_W = 320;
 
 export default function Contacts() {
+  const navigate = useNavigate();
   const contacts = useContacts();
   const orgs = useOrganizations();
   const [search, setSearch]         = useState('');
   const [orgFilter, setOrgFilter]   = useState('all');
   const [sort, setSort]             = useState(SORT_DEFAULT);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const deleteTriggerRef = useRef(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -179,66 +201,51 @@ export default function Contacts() {
         style={{ paddingTop: bodyPaddingTop }}
       >
         <div className="max-w-6xl mx-auto py-8">
-          <div className="bg-surface border border-border rounded relative overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Name</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Organization</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Role</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Email</TableHead>
-                  <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Phone</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contacts.loading && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-text-muted py-10 font-mono text-xs uppercase tracking-[0.1em]">Loading…</TableCell></TableRow>
-                )}
-                {!contacts.loading && contacts.error && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-danger py-10 font-mono text-xs">{contacts.error.message}</TableCell></TableRow>
-                )}
-                {!contacts.loading && !contacts.error && rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-text-dim">
-                      {contacts.data.length === 0 ? 'No contacts yet.' : 'No matches for current filters.'}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!contacts.loading && !contacts.error && rows.map(c => (
-                  <TableRow key={c.id} className="border-border hover:bg-surface2 transition-colors">
-                    <TableCell className="text-text font-medium">
-                      {fmtName(c)}
-                      {c.title && <div className="text-text-dim text-xs font-normal">{c.title}</div>}
-                    </TableCell>
-                    <TableCell>
-                      {c.organization ? (
-                        <Link to={`/organizations/${c.organization.id}`} className="text-accent hover:text-accent-bright">
-                          {c.organization.name}
-                        </Link>
-                      ) : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim">
-                      {c.role
-                        ? <Badge variant="outline" className="font-mono text-[10px] uppercase tracking-[0.1em] bg-surface2 text-text-dim border-border">
-                            {labelFor(CONTACT_ROLES, c.role)}
-                          </Badge>
-                        : <span className="text-text-muted">—</span>}
-                    </TableCell>
-                    <TableCell className="text-text-dim font-mono text-xs">
-                      {c.email
-                        ? <a href={`mailto:${c.email}`} className="hover:text-accent">{c.email}</a>
-                        : '—'}
-                    </TableCell>
-                    <TableCell className="text-text-dim font-mono text-xs">
-                      {c.phone
-                        ? <a href={`tel:${c.phone}`} className="hover:text-accent">{fmtPhone(c.phone)}</a>
-                        : '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {contacts.loading && (
+            <EmptyContainer>
+              <div className="font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+                Loading…
+              </div>
+            </EmptyContainer>
+          )}
+          {!contacts.loading && contacts.error && (
+            <EmptyContainer>
+              <div className="text-danger font-mono text-xs">{contacts.error.message}</div>
+            </EmptyContainer>
+          )}
+          {!contacts.loading && !contacts.error && rows.length === 0 && (
+            <EmptyContainer>
+              <div className="text-text-dim mb-3 font-mono text-xs uppercase tracking-[0.1em]">
+                {contacts.data.length === 0 ? 'No contacts yet.' : 'No matches for current filters.'}
+              </div>
+              {contacts.data.length === 0 && (
+                <Button
+                  onClick={() => setCreateOpen(true)}
+                  variant="outline"
+                  className="border-accent text-accent hover:bg-accent-dim font-mono uppercase tracking-[0.1em] text-xs"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add the first one
+                </Button>
+              )}
+            </EmptyContainer>
+          )}
+
+          {!contacts.loading && !contacts.error && rows.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {rows.map(c => (
+                <ContactCard
+                  key={c.id}
+                  contact={c}
+                  onClick={() => navigate(`/contacts/${c.id}`)}
+                  onEdit={() => setEditTarget(c)}
+                  onDelete={(triggerEl) => {
+                    deleteTriggerRef.current = triggerEl;
+                    setDeleteTarget(c);
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
           {!contacts.loading && rows.length > 0 && (
             <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
@@ -321,7 +328,215 @@ export default function Contacts() {
         organizations={orgs.data}
         onSave={async (payload) => { await contacts.create(payload); }}
       />
+
+      {/* Edit dialog driven by the card kebab. List context — the
+          ContactFormDialog has no in-dialog Delete (unlike Tasks),
+          so there's no conflict with the page-level Delete on the
+          detail page. No hideDeleteAction prop needed. */}
+      <ContactFormDialog
+        open={Boolean(editTarget)}
+        onOpenChange={(o) => { if (!o) setEditTarget(null); }}
+        contact={editTarget}
+        organizations={orgs.data}
+        onSave={async (payload) => {
+          try {
+            await contacts.update(editTarget.id, payload);
+            setEditTarget(null);
+          } catch (err) {
+            console.error('Contact update failed', err);
+            toast.error(err?.message || 'Update failed.');
+          }
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => { if (!next) setDeleteTarget(null); }}
+        triggerRef={deleteTriggerRef}
+        title={deleteTarget
+          ? `Delete contact "${fmtName(deleteTarget)}"?`
+          : 'Delete contact?'}
+        onConfirm={async () => {
+          try {
+            await contacts.remove(deleteTarget.id);
+            setDeleteTarget(null);
+          } catch (err) {
+            console.error('Contact delete failed', err);
+            toast.error(err?.message || 'Delete failed.');
+            throw err;
+          }
+        }}
+      />
     </>
+  );
+}
+
+// Two-layout responsive card. Logo slot is the PARENT ORG logo, not
+// the contact's own image (contacts have none today).
+//
+// Email and phone live ON THE DETAIL PAGE only — they're action data
+// (mailto/tel taps), not scanning data, and the combined line on
+// mobile truncated below the threshold of usefulness.
+//
+// Mobile rows (up to 4; rows 2 and 4 hide when their datum is null):
+//   1 — contact name (accent teal, font-display, primary) + kebab right
+//   2 — role with trailing "at" preposition (mono cap, text-dim) —
+//       reads as the lead-in to row 3, so the visual flows
+//       "DECISION MAKER at / Gastro Health Grandview" across the
+//       two rows
+//   3 — organization name (white sans, parent identifier)
+//   4 — title (mono normal-case, text-muted) — descriptor only
+//
+// Wide layout:
+//   left thumb     — org logo / initials fallback
+//   left cluster   — org name / city, ST
+//   center cluster — contact name (accent teal) / title (mono)
+//   right cluster  — kebab on top / role (mono cap, text-dim) below
+function ContactCard({ contact: c, onClick, onEdit, onDelete }) {
+  const orgName  = c.organization?.name ?? '—';
+  const orgCity  = c.organization?.city  ?? null;
+  const orgState = c.organization?.state ?? null;
+  const orgLocation = [orgCity, orgState].filter(Boolean).join(', ');
+
+  const name = fmtName(c);
+  const roleLabel = c.role ? labelFor(CONTACT_ROLES, c.role) : null;
+  const titleText = c.title || null;
+
+  const kebab = (
+    <CardKebab ariaLabel="Contact actions" onEdit={onEdit} onDelete={onDelete} />
+  );
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      className="relative bg-surface border border-border rounded p-3 md:px-5 md:py-3 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none"
+    >
+      {/* ── Mobile / narrow layout (below md) ─────────────────── */}
+      <div className="md:hidden flex items-center gap-3">
+        <Thumb
+          path={c.organization?.logo_path}
+          bucket="organization-logos"
+          alt={orgName}
+          fallback={initialsFor(orgName)}
+          size="lg"
+          shape="square"
+          className="h-20 w-20 text-base flex-shrink-0"
+        />
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Row 1 — contact name (primary) + kebab. items-center
+              vertically aligns the 36×36 kebab against the title's
+              cap-height. */}
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="flex-1 min-w-0 font-display text-[18px] text-accent leading-none truncate">
+              {name}
+            </h3>
+            <div className="flex-shrink-0">{kebab}</div>
+          </div>
+          {/* Row 2 — "ROLE at" lead-in. Mono cap on the role; the
+              trailing "at" is lowercase mono so the eye reads it as
+              a preposition flowing into the org name on row 3.
+              Hidden when no role is set. */}
+          {roleLabel && (
+            <p className="mt-1 font-mono text-[11px] leading-none truncate text-text-dim">
+              <span className="uppercase tracking-[0.12em]">{roleLabel}</span>
+              <span className="text-text-muted normal-case"> at</span>
+            </p>
+          )}
+          {/* Row 3 — organization name. Tightens against row 2 when
+              row 2 is present so the "at" preposition reads as a
+              direct lead-in; falls back to the dominant title-to-
+              parent break (mt-3) when row 2 is hidden. */}
+          <p className={cn(
+            'text-text text-[15px] font-medium leading-none truncate',
+            roleLabel ? 'mt-1' : 'mt-3',
+          )}>
+            {orgName}
+          </p>
+          {/* Row 4 — title (mono, descriptor). Hidden when null. */}
+          {titleText && (
+            <p className="mt-1 font-mono text-[11px] tracking-tight text-text-muted leading-none truncate">
+              {titleText}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Wide / horizontal layout (md and up) ──────────────── */}
+      {/* items-stretch + justify-between on each cluster makes
+          row 1 sit at the top edge and row 2 at the bottom edge of
+          a single shared height across all three sections, so the
+          rows visually align across left / middle / right. The
+          logo is vertical-centered within that same height. Card
+          height is driven by the tallest cluster (typically the
+          right cluster's kebab+role pair). */}
+      <div className="hidden md:flex items-stretch gap-5">
+        <div className="flex-shrink-0 flex items-center">
+          <Thumb
+            path={c.organization?.logo_path}
+            bucket="organization-logos"
+            alt={orgName}
+            fallback={initialsFor(orgName)}
+            size="md"
+            shape="square"
+            className="h-12 w-12 lg:h-14 lg:w-14 text-sm"
+          />
+        </div>
+
+        {/* Left cluster — org name (top) / city, ST (tight under).
+            justify-start + small gap (rather than justify-between)
+            keeps row 2 close to row 1 visually; the right cluster
+            still uses justify-between, so role sits lower than the
+            left/middle row 2 by design. */}
+        <div className="min-w-0 basis-1/3 flex flex-col justify-start gap-1 py-0.5">
+          <p className="text-text text-[16px] lg:text-[17px] font-medium leading-tight truncate">
+            {orgName}
+          </p>
+          <p className="font-mono text-[11px] lg:text-[12px] text-text-dim leading-none truncate">
+            {orgLocation || <span className="text-text-muted">—</span>}
+          </p>
+        </div>
+
+        {/* Center cluster — contact name (top) / title (tight under) */}
+        <div className="flex-1 min-w-0 flex flex-col justify-start gap-1 py-0.5">
+          <h3 className="font-display text-[18px] lg:text-[20px] text-accent leading-tight truncate">
+            {name}
+          </h3>
+          <p className="font-mono text-[12px] lg:text-[13px] leading-none truncate text-text-muted">
+            {titleText || <span className="text-text-muted">—</span>}
+          </p>
+        </div>
+
+        {/* Right cluster — kebab (top) / role mono cap (bottom).
+            Role renders as mono text (categorization signal), not a
+            chip, so position matches the badge-slot grammar without
+            misreading as lifecycle state. Hidden when no role set. */}
+        <div className="flex-shrink-0 flex flex-col justify-between items-end">
+          {kebab}
+          {roleLabel ? (
+            <span className="font-mono text-[10px] lg:text-[11px] uppercase tracking-[0.12em] text-text-dim leading-none">
+              {roleLabel}
+            </span>
+          ) : (
+            // Empty placeholder keeps the right cluster's lower edge
+            // anchored at the bottom shared baseline even when role
+            // is absent, so the kebab doesn't drift downward via
+            // justify-between collapsing to a single child.
+            <span aria-hidden className="h-[11px] leading-none" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyContainer({ children }) {
+  return (
+    <div className="bg-surface border border-border rounded flex flex-col items-center justify-center text-center px-6 py-20 min-h-[280px]">
+      {children}
+    </div>
   );
 }
 
