@@ -96,11 +96,6 @@ export default function Home() {
   return (
     <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
       <div className="max-w-6xl mx-auto py-8">
-        <h1 className="font-display text-4xl text-text mb-2">Home</h1>
-        <p className="text-text-dim mb-10 font-mono text-[11px] uppercase tracking-[0.12em]">
-          Provider Solutions CRM
-        </p>
-
         <SectionHeader text="Snapshot" first />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
           <KPICard
