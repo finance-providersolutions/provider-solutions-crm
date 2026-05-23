@@ -15,6 +15,7 @@ import Thumb from '@/components/uploads/Thumb';
 import ProviderFormDialog from '@/components/providers/ProviderFormDialog';
 import { useProviders } from '@/hooks/useProviders';
 import { useTasks } from '@/hooks/useTasks';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import {
   POSITION_TYPES, PROVIDER_STATUSES, SPECIALTIES, labelFor, specialtyAbbrFor,
 } from '@/utils/constants';
@@ -86,6 +87,11 @@ export default function Providers() {
   const deleteTriggerRef                  = useRef(null);
   const [searchOpen, setSearchOpen]       = useState(false);
   const [filterOpen, setFilterOpen]       = useState(false);
+
+  // Anchor dialogs below this page's total fixed chrome (primary
+  // header + bar-2 + bar-3 when search is open). Tracks searchOpen
+  // live via the hook's dependency on its px argument.
+  useChromeBottom(BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0));
 
   const filtersActive = statusFilter !== 'all'
     || specialtyFilter !== 'all'

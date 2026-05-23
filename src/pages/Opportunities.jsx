@@ -16,6 +16,7 @@ import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDia
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useTasks } from '@/hooks/useTasks';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import {
   OPPORTUNITY_SETTINGS, OPPORTUNITY_STAGES, POSITION_TYPES, SPECIALTIES,
   US_STATES, labelFor, specialtyAbbrFor,
@@ -91,6 +92,11 @@ export default function Opportunities() {
   const [editTarget, setEditTarget] = useState(null);     // opportunity row being edited
   const [deleteTarget, setDeleteTarget] = useState(null); // opportunity row pending delete confirm
   const deleteTriggerRef = useRef(null);                  // last-clicked kebab — focus restore after delete
+
+  // Anchor dialogs below this page's total fixed chrome (primary
+  // header + bar-2 + bar-3 when search is open). Tracks searchOpen
+  // live via the hook's dependency on its px argument.
+  useChromeBottom(BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0));
 
   const filtersActive = stageFilter !== 'all'
     || specFilter !== 'all'

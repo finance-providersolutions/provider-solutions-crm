@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, Mail, Pencil, Phone, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import CredentialsSection from '@/components/credentialing/CredentialsSection';
 import FacilityPrivilegesSection from '@/components/credentialing/FacilityPrivilegesSection';
 import { useProvider, useProviders } from '@/hooks/useProviders';
 import { useActivities } from '@/hooks/useActivities';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import {
   POSITION_TYPES, PROVIDER_SOURCES, PROVIDER_STATUSES,
   SPECIALTIES, labelFor, specialtyAbbrFor,
@@ -81,31 +82,14 @@ export default function Provider() {
     return () => ro.disconnect();
   }, [provider]); // re-measure if the provider object swaps in/out
 
-  // Any open Dialog (provider Edit, license/credential/privilege forms,
-  // etc.) needs the fixed provider header out of the way so the dialog
-  // top — which the shared dialog primitive anchors just below the
-  // 58px PageHeader — is not obscured by this header (z-150, sits
-  // above the dialog's z-50 by suite convention). ConfirmDeleteDialog
-  // uses role="alertdialog" (not "dialog") so it is intentionally
-  // not picked up here — it's small enough to fit between PageHeader
-  // and the provider header without overlap.
-  const [anyDialogOpen, setAnyDialogOpen] = useState(false);
-  useEffect(() => {
-    const check = () => {
-      setAnyDialogOpen(
-        Boolean(document.querySelector('[role="dialog"][data-state="open"]')),
-      );
-    };
-    check();
-    const observer = new MutationObserver(check);
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['data-state'],
-    });
-    return () => observer.disconnect();
-  }, []);
+  // Expose total fixed chrome height (primary header + this page's
+  // condensed header) to the shared Dialog primitive via the
+  // `--ps-chrome-bottom` CSS variable, so dialogs opened from this
+  // page (provider Edit, license/credential/privilege forms, etc.)
+  // anchor below all fixed chrome rather than tucking under it. The
+  // hook re-runs whenever headerH changes so the variable tracks
+  // badge-row wrap and other measured-height shifts live.
+  useChromeBottom(58 + headerH);
 
   async function performDelete() {
     if (!provider) return;
@@ -149,19 +133,14 @@ export default function Provider() {
   return (
     <>
       {/* ── Fixed condensed header — sits below the suite-wide
-            PageHeader (58px, z-200) and above body content. Hidden
-            while ANY Dialog is open (Edit provider, Add license,
-            Add credential, Add privilege, etc.) so the dialog top
-            — anchored just below PageHeader — is not obscured.
-            `invisible` (not `hidden`) keeps the element's measured
-            height stable so the body's paddingTop doesn't snap
-            when the header toggles. ── */}
+            PageHeader (58px, z-200) and above body content. Stays
+            visible while Dialogs are open; the shared Dialog
+            primitive anchors below `--ps-chrome-bottom` (set by
+            useChromeBottom above) so dialog tops clear this header
+            without it needing to disappear. ── */}
       <div
         ref={headerRef}
-        className={cn(
-          'fixed left-0 right-0 z-[150] bg-surface border-b border-border',
-          anyDialogOpen && 'invisible',
-        )}
+        className="fixed left-0 right-0 z-[150] bg-surface border-b border-border"
         style={{ top: 'calc(58px + env(safe-area-inset-top))' }}
       >
         <div className="max-w-6xl mx-auto px-6 py-3 flex items-start gap-3 sm:gap-4">

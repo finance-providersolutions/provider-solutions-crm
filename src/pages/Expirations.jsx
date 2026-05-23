@@ -12,6 +12,7 @@ import ExpirationCluster, {
   ExpirationPill,
 } from '@/components/credentialing/ExpirationCluster';
 import { useExpirations, bucketExpirations } from '@/hooks/useExpirations';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
@@ -74,6 +75,13 @@ export default function Expirations() {
   const [sort, setSort]             = useState(SORT_DEFAULT);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Anchor dialogs below this page's total fixed chrome (primary
+  // header + bar-2 + bar-3 when search is open). Tracks searchOpen
+  // live via the hook's dependency on its px argument. No "New"
+  // dialog exists on this read-only page; the variable is set
+  // anyway for consistency with the other list pages.
+  useChromeBottom(BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0));
 
   const filtersActive = typeFilter !== 'all' || sort !== SORT_DEFAULT;
   const searchActive  = search.trim().length > 0;

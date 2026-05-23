@@ -14,6 +14,7 @@ import Thumb from '@/components/uploads/Thumb';
 import ContactFormDialog from '@/components/contacts/ContactFormDialog';
 import { useContacts } from '@/hooks/useContacts';
 import { useOrganizations } from '@/hooks/useOrganizations';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import { CONTACT_ROLES, labelFor } from '@/utils/constants';
 import { fmtName } from '@/utils/formatters';
 import { initialsFor } from '@/utils/storage';
@@ -63,6 +64,11 @@ export default function Contacts() {
   const deleteTriggerRef = useRef(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Anchor dialogs below this page's total fixed chrome (primary
+  // header + bar-2 + bar-3 when search is open). Tracks searchOpen
+  // live via the hook's dependency on its px argument.
+  useChromeBottom(BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0));
 
   const filtersActive = orgFilter !== 'all' || sort !== SORT_DEFAULT;
   const searchActive  = search.trim().length > 0;

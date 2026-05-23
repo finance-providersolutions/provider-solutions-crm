@@ -14,6 +14,7 @@ import Thumb from '@/components/uploads/Thumb';
 import OrganizationFormDialog from '@/components/organizations/OrganizationFormDialog';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useOpportunities } from '@/hooks/useOpportunities';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import { ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
 import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
@@ -73,6 +74,11 @@ export default function Organizations() {
   const deleteTriggerRef = useRef(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Anchor dialogs below this page's total fixed chrome (primary
+  // header + bar-2 + bar-3 when search is open). Tracks searchOpen
+  // live via the hook's dependency on its px argument.
+  useChromeBottom(BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0));
 
   const filtersActive = typeFilter !== 'all' || sort !== SORT_DEFAULT;
   const searchActive  = search.trim().length > 0;

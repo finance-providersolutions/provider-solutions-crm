@@ -17,6 +17,7 @@ import { CardKebab } from '@/components/ui/card-kebab';
 import TaskFormDialog from '@/components/tasks/TaskFormDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useTasks } from '@/hooks/useTasks';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import { TASK_PRIORITIES, TASK_STATUSES, labelFor } from '@/utils/constants';
 import { fmtDate } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
@@ -80,6 +81,11 @@ export default function Tasks() {
   const deleteTriggerRef = useRef(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  // Anchor dialogs below this page's total fixed chrome (primary
+  // header + bar-2 + bar-3 when search is open). Tracks searchOpen
+  // live via the hook's dependency on its px argument.
+  useChromeBottom(BAR1_H + BAR2_H + (searchOpen ? BAR3_H : 0));
 
   // Each tab fetches its own slice via filter params. Filters change
   // → useTasks refetches. Three tabs, three live queries when active —
