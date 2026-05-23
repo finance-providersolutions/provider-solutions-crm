@@ -24,7 +24,7 @@ function AppShell({ children }) {
   const { signOut } = useAuth();
   return (
     <>
-      <PageHeader subtitle="CRM · Phase 1" onSignOut={signOut} />
+      <PageHeader onSignOut={signOut} />
       {children}
     </>
   );

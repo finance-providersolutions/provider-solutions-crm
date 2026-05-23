@@ -26,9 +26,11 @@ export default function PageHeader({ subtitle, onSignOut }) {
             <span className="font-display text-[18px] sm:text-[22px] tracking-[-0.02em] leading-[1.1] text-text">
               Provider Solutions
             </span>
-            <span className="hidden sm:inline font-mono text-[10px] tracking-[0.12em] uppercase text-text-dim">
-              {subtitle}
-            </span>
+            {subtitle && (
+              <span className="hidden sm:inline font-mono text-[10px] tracking-[0.12em] uppercase text-text-dim">
+                {subtitle}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1.5">

@@ -99,6 +99,12 @@ export const OPPORTUNITY_STAGES = [
   { value: 'lost',       label: 'Lost'       },
 ];
 
+// Suite-wide definition of "active" / "open" opportunity stages.
+// Filled and lost are terminal — explicitly excluded so a future new
+// stage doesn't silently inflate any "open opportunities" count.
+// Consumed by Organizations card pill and Home Snapshot KPI.
+export const ACTIVE_OPPORTUNITY_STAGES = ['lead', 'qualified', 'proposal', 'contracted'];
+
 // CHECK-constrained on opportunities.setting (BUILD_PLAN §4.1).
 export const OPPORTUNITY_SETTINGS = [
   { value: 'inpatient',  label: 'Inpatient'  },

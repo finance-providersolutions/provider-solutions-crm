@@ -15,21 +15,15 @@ import OrganizationFormDialog from '@/components/organizations/OrganizationFormD
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useOpportunities } from '@/hooks/useOpportunities';
 import { useChromeBottom } from '@/hooks/useChromeBottom';
-import { ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
+import { ACTIVE_OPPORTUNITY_STAGES, ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
 import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
-// Active-opportunity stage set for the org-card pill. Matches the
-// suite-wide stage semantics: lead/qualified/proposal/contracted
-// are in-pipeline; filled is terminal success; lost is terminal
-// off-ramp. Both terminal states are excluded from the count.
-//
-// If OPPORTUNITY_STAGES ever grows a new active stage, add it
-// here too — preferring an explicit allowlist over a denylist so
-// new stages don't silently inflate the headline number.
-const ACTIVE_OPPORTUNITY_STAGES = new Set([
-  'lead', 'qualified', 'proposal', 'contracted',
-]);
+// Set-form of ACTIVE_OPPORTUNITY_STAGES for O(1) membership checks
+// in the per-card bucketing loop. The array form lives in constants
+// as the suite-wide source of truth (also consumed by the Home
+// Snapshot KPI).
+const ACTIVE_OPPORTUNITY_STAGE_SET = new Set(ACTIVE_OPPORTUNITY_STAGES);
 
 // Kept exported for the detail page header — type renders as a
 // colored chip there (badge treatment is appropriate in the
@@ -118,7 +112,7 @@ export default function Organizations() {
     const map = new Map();
     for (const o of opportunities.data) {
       if (!o.organization_id) continue;
-      if (!ACTIVE_OPPORTUNITY_STAGES.has(o.stage)) continue;
+      if (!ACTIVE_OPPORTUNITY_STAGE_SET.has(o.stage)) continue;
       const prev = map.get(o.organization_id) || { count: 0 };
       prev.count += 1;
       map.set(o.organization_id, prev);
