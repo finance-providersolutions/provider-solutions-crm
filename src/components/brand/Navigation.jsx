@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, CalendarClock, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
+import { Building2, CalendarClock, Filter, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle.jsx';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,7 @@ const ITEMS = [
   { path: '/contacts',      label: 'Contacts',      icon: Users         },
   { path: '/tasks',         label: 'Tasks',         icon: ListTodo      },
   { path: '/expirations',   label: 'Expirations',   icon: CalendarClock },
+  { path: '/funnel',        label: 'Funnel',        icon: Filter        },
 ];
 
 export default function Navigation({ onSignOut }) {

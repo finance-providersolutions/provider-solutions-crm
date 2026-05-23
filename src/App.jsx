@@ -19,6 +19,7 @@ import Opportunity from '@/pages/Opportunity';
 import Tasks from '@/pages/Tasks';
 import Task from '@/pages/Task';
 import Expirations from '@/pages/Expirations';
+import Funnel from '@/pages/Funnel';
 
 function AppShell({ children }) {
   const { signOut } = useAuth();
@@ -84,6 +85,10 @@ export default function App() {
             <Route
               path="/expirations"
               element={<RequireAuth><AppShell><Expirations /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/funnel"
+              element={<RequireAuth><AppShell><Funnel /></AppShell></RequireAuth>}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

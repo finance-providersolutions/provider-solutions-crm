@@ -1,56 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Archive, ArchiveRestore, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
-import { CardKebab } from '@/components/ui/card-kebab';
-import Thumb from '@/components/uploads/Thumb';
 import ProviderFormDialog from '@/components/providers/ProviderFormDialog';
+import ProviderCard from '@/components/providers/ProviderCard';
 import { useProviders } from '@/hooks/useProviders';
 import { useTasks } from '@/hooks/useTasks';
 import { useChromeBottom } from '@/hooks/useChromeBottom';
-import {
-  POSITION_TYPES, PROVIDER_STATUSES, SPECIALTIES, labelFor, specialtyAbbrFor,
-} from '@/utils/constants';
+import { PROVIDER_STATUSES, SPECIALTIES } from '@/utils/constants';
 import { fmtName } from '@/utils/formatters';
-import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
-// Status pill colors. Target is pre-engagement (muted); the in-funnel
-// stages share the accent treatment; active is the only "currently
-// in revenue" green; inactive and declined both mute (declined =
-// they walked on their own, not a failure state); disqualified is
-// the only danger tone (we screened them out). The visual split
-// between declined and disqualified is load-bearing — both render
-// in lists, cards, and the detail header, and at-a-glance read is
-// the point. Same shape and tokens as Organizations.jsx TYPE_BADGE.
-export const STATUS_BADGE = {
-  target:       'bg-surface2   text-text-muted border-border',
-  lead:         'bg-accent-dim text-accent border-accent/40',
-  contacted:    'bg-accent-dim text-accent border-accent/40',
-  interested:   'bg-accent-dim text-accent border-accent/40',
-  interviewing: 'bg-accent-dim text-accent border-accent/40',
-  onboarding:   'bg-accent-dim text-accent border-accent/40',
-  active:       'bg-income/15  text-income border-income/40',
-  inactive:     'bg-surface2   text-text-dim border-border',
-  declined:     'bg-surface2   text-text-dim border-border',
-  disqualified: 'bg-danger/15  text-danger border-danger/40',
-};
-
-// Safety net for any status value not present in STATUS_BADGE —
-// covers two cases: (1) live rows still holding the removed
-// `credentialed` value until the reassignment SQL runs, and
-// (2) future schema drift if a new status is added to the constant
-// without a matching badge entry. The neutral surface tone keeps
-// the row readable without inventing semantic meaning.
-export const STATUS_BADGE_FALLBACK = 'bg-surface2 text-text-muted border-border';
+// STATUS_BADGE + STATUS_BADGE_FALLBACK now live in
+// src/components/providers/statusBadge.js — re-exported here so
+// any existing import path keeps working during the slice. New
+// consumers should import directly from the shared module.
+export { STATUS_BADGE, STATUS_BADGE_FALLBACK } from '@/components/providers/statusBadge';
 
 const SORT_DEFAULT = 'default';
 const SORT_NEWEST  = 'newest';
@@ -452,185 +424,6 @@ export default function Providers() {
         }}
       />
     </>
-  );
-}
-
-// Three-row mobile / single-content-cluster wide layout. Providers
-// ARE the leaf record (no parent identifier to surface), so the
-// 4-row Opportunities/Tasks/Contacts pattern compresses to 3. Photo
-// is the strongest logo-slot case in the suite — provider's own
-// image, with initials fallback.
-//
-// Per-page card variations:
-//   - Logo: provider photo, circle shape (matches the detail page's
-//     xl-circle treatment), 80×80 mobile, 56-64px wide.
-//   - Archive lives in the kebab (Edit → Archive/Unarchive → Delete).
-//     The shared CardKebab now takes extraItems for lifecycle actions
-//     that sit between primary and destructive.
-//   - Archived state: opacity-60 on the whole card (the user
-//     explicitly toggled "Show archived" to see these, so the
-//     opacity is confirmation, not the only signal). No inline
-//     "ARCHIVED" label — it would compete for row 1 space without
-//     adding information.
-//
-// Mobile rows (3 total):
-//   1 — position · specialty (mono cap) + tasks pill + kebab
-//   2 — provider name (accent teal, font-display, primary)
-//   3 — home city, ST (mono dim, left) + status badge (right)
-//
-// Wide layout:
-//   photo (left, circle, vertical-centered)
-//   content cluster (flex-1, three stacked rows):
-//     position · spec mono
-//     name (accent teal, font-display, larger)
-//     home city, ST (mono dim)
-//   right cluster (shrink-0, items-end, justify-between):
-//     tasks pill + kebab on top
-//     status badge on bottom
-function ProviderCard({ provider: p, taskSummary, onClick, onEdit, onArchiveToggle, onDelete }) {
-  const name = fmtName(p);
-  const location = [p.home_city, p.home_state].filter(Boolean).join(', ');
-  const positionSpec = [
-    p.position_type ? labelFor(POSITION_TYPES, p.position_type) : null,
-    p.specialty ? specialtyAbbrFor(p.specialty) : null,
-  ].filter(Boolean).join(' · ');
-
-  // Tasks-count pill — same shape as Opportunities. Mobile shows
-  // just the digit (compact circle); md+ adds the word. Numeral
-  // accent teal normally; danger red with medium weight when at
-  // least one linked open task is overdue. The danger-red token
-  // is chosen so it still reads against the parent card's
-  // opacity-60 wash when archived (visual check on render).
-  const tasksBadge = taskSummary?.count > 0 ? (
-    <span className="inline-flex items-center justify-center h-6 px-2 min-w-[24px] border border-border rounded-full font-mono text-[11px] leading-none whitespace-nowrap">
-      <span className={cn(taskSummary.hasOverdue ? 'text-danger font-medium' : 'text-accent')}>
-        {taskSummary.count}
-      </span>
-      <span className="hidden md:inline ml-1 text-text-dim">
-        task{taskSummary.count === 1 ? '' : 's'}
-      </span>
-    </span>
-  ) : null;
-
-  // Kebab's extra item: Archive when archived=false, Unarchive when
-  // true. Sits between Edit and Delete per the CardKebab order
-  // contract. Non-destructive (toggle, reversible).
-  const kebabExtras = [
-    {
-      label: p.archived ? 'Unarchive' : 'Archive',
-      icon: p.archived ? ArchiveRestore : Archive,
-      onSelect: onArchiveToggle,
-    },
-  ];
-
-  const tasksAndKebab = (
-    <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-      {tasksBadge}
-      <CardKebab
-        ariaLabel="Provider actions"
-        onEdit={onEdit}
-        onDelete={onDelete}
-        extraItems={kebabExtras}
-      />
-    </div>
-  );
-
-  const statusBadge = p.status ? (
-    <Badge variant="outline" className={cn(
-      'flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.1em]',
-      STATUS_BADGE[p.status] ?? STATUS_BADGE_FALLBACK,
-    )}>
-      {labelFor(PROVIDER_STATUSES, p.status)}
-    </Badge>
-  ) : null;
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-      className={cn(
-        'relative bg-surface border border-border rounded p-3 md:px-5 md:py-3 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none',
-        p.archived && 'opacity-50',
-      )}
-    >
-      {/* ── Mobile / narrow layout (below md) ─────────────────── */}
-      <div className="md:hidden flex items-center gap-3">
-        <Thumb
-          path={p.photo_path}
-          bucket="provider-photos"
-          alt={name}
-          fallback={initialsFor(p)}
-          size="lg"
-          shape="circle"
-          className="h-20 w-20 text-base flex-shrink-0"
-        />
-        <div className="flex-1 min-w-0 flex flex-col">
-          {/* Row 1 — position · specialty + tasks pill + kebab. */}
-          <div className="flex items-center gap-2 min-w-0">
-            <p className="flex-1 min-w-0 font-mono text-[11px] tracking-tight text-text leading-none truncate">
-              {positionSpec || ''}
-            </p>
-            {tasksAndKebab}
-          </div>
-          {/* Row 2 — provider name (primary). Negative top margin
-              compensates for DM Serif Display's intrinsic line-box
-              padding (same trick as Opportunities/Tasks cards). */}
-          <h3 className="-mt-1 font-display text-[18px] text-accent leading-none truncate">
-            {name}
-          </h3>
-          {/* Row 3 — city, ST + status badge. mt-3 creates the
-              dominant name-to-context break (matches the other
-              cards' rhythm). */}
-          <div className="mt-3 flex items-center gap-2 min-w-0">
-            <p className="flex-1 min-w-0 font-mono text-[12px] text-text-dim leading-none truncate">
-              {location || ''}
-            </p>
-            {statusBadge}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Wide / horizontal layout (md and up) ──────────────── */}
-      <div className="hidden md:flex items-stretch gap-5">
-        <div className="flex-shrink-0 flex items-center">
-          <Thumb
-            path={p.photo_path}
-            bucket="provider-photos"
-            alt={name}
-            fallback={initialsFor(p)}
-            size="md"
-            shape="circle"
-            className="h-12 w-12 lg:h-14 lg:w-14 text-sm"
-          />
-        </div>
-
-        {/* Single content cluster — position/spec / name / city ST.
-            Tight gap matches Contacts' wide-layout density. */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
-          {positionSpec && (
-            <p className="font-mono text-[12px] text-text leading-none truncate">
-              {positionSpec}
-            </p>
-          )}
-          <h3 className="font-display text-[18px] lg:text-[20px] text-accent leading-tight truncate">
-            {name}
-          </h3>
-          <p className="font-mono text-[11px] lg:text-[12px] text-text-dim leading-none truncate">
-            {location || <span className="text-text-muted">—</span>}
-          </p>
-        </div>
-
-        {/* Right cluster — tasks pill + kebab on top / status badge
-            pinned bottom. justify-between aligns the two against
-            the card's stretched height. */}
-        <div className="flex-shrink-0 flex flex-col justify-between items-end gap-2">
-          {tasksAndKebab}
-          {statusBadge || <span aria-hidden className="h-[20px] leading-none" />}
-        </div>
-      </div>
-    </div>
   );
 }
 
