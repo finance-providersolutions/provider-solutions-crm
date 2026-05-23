@@ -23,19 +23,26 @@ export const ACTIVITY_TYPES = [
   { value: 'sms',     label: 'SMS'     },
 ];
 
-// Provider pipeline (BUILD_PLAN §4.4). Ordered lead → active →
-// inactive/disqualified, mirroring how the user moves a record
-// through the funnel.
+// Provider pipeline. Ordered target → active → inactive/declined/
+// disqualified, mirroring how the user moves a record through the
+// funnel. `description` is selection-helper text shown only in the
+// status picker — never on lists, cards, or detail views. Replaces
+// the old `credentialed` status (credentialing readiness is now
+// computed from the credentialing tables, not a manual status —
+// keeping it here would create a drifting second source of truth);
+// the old `disqualified` is split into `declined` (they walked) and
+// `disqualified` (we screened them out).
 export const PROVIDER_STATUSES = [
-  { value: 'lead',          label: 'Lead'          },
-  { value: 'contacted',     label: 'Contacted'     },
-  { value: 'interested',    label: 'Interested'    },
-  { value: 'interviewing',  label: 'Interviewing'  },
-  { value: 'onboarding',    label: 'Onboarding'    },
-  { value: 'credentialed',  label: 'Credentialed'  },
-  { value: 'active',        label: 'Active'        },
-  { value: 'inactive',      label: 'Inactive'      },
-  { value: 'disqualified',  label: 'Disqualified'  },
+  { value: 'target',        label: 'Target',        description: 'Identified for outreach; no referral or interest yet' },
+  { value: 'lead',          label: 'Lead',          description: 'Referred or showed inbound interest' },
+  { value: 'contacted',     label: 'Contacted',     description: 'First contact made' },
+  { value: 'interested',    label: 'Interested',    description: 'Engaged and wants to proceed' },
+  { value: 'interviewing',  label: 'Interviewing',  description: 'In evaluation' },
+  { value: 'onboarding',    label: 'Onboarding',    description: 'Agreed; being brought aboard (paperwork, setup)' },
+  { value: 'active',        label: 'Active',        description: 'Currently placeable / taking shifts' },
+  { value: 'inactive',      label: 'Inactive',      description: 'Was active, not currently taking shifts' },
+  { value: 'declined',      label: 'Declined',      description: 'They withdrew (not interested, took other work, went quiet)' },
+  { value: 'disqualified',  label: 'Disqualified',  description: "We screened them out (didn't meet the bar, not a fit)" },
 ];
 
 // CHECK-constrained on providers.position_type and
@@ -99,6 +106,48 @@ export const OPPORTUNITY_SETTINGS = [
   { value: 'other',      label: 'Other'      },
 ];
 
+// CHECK-constrained on provider_licenses.status (0004). `pending`
+// supports the recruiting workflow of pursuing a new state license
+// before it's granted.
+export const LICENSE_STATUSES = [
+  { value: 'active',  label: 'Active'  },
+  { value: 'pending', label: 'Pending' },
+  { value: 'expired', label: 'Expired' },
+];
+
+// CHECK-constrained on credentials.credential_type (0004). `other`
+// is the catch-all; the schema requires `label` to be non-blank
+// when type='other' so two `other` rows stay distinguishable.
+export const CREDENTIAL_TYPES = [
+  { value: 'board_certification', label: 'Board certification' },
+  { value: 'dea',                 label: 'DEA'                 },
+  { value: 'bls',                 label: 'BLS'                 },
+  { value: 'acls',                label: 'ACLS'                },
+  { value: 'malpractice',         label: 'Malpractice'         },
+  { value: 'other',               label: 'Other'               },
+];
+
+// CHECK-constrained on credentials.status (0004). Same set as
+// LICENSE_STATUSES today; kept as separate exports so future
+// divergence (e.g., credentials adding 'suspended') doesn't require
+// renaming at call sites.
+export const CREDENTIAL_STATUSES = [
+  { value: 'active',  label: 'Active'  },
+  { value: 'pending', label: 'Pending' },
+  { value: 'expired', label: 'Expired' },
+];
+
+// CHECK-constrained on facility_privileges.status (0004). Models the
+// full privilege lifecycle: pending application, active grant,
+// expired, denied (by the hospital), or withdrawn (by the provider).
+export const PRIVILEGE_STATUSES = [
+  { value: 'pending',    label: 'Pending'    },
+  { value: 'active',     label: 'Active'     },
+  { value: 'expired',    label: 'Expired'    },
+  { value: 'denied',     label: 'Denied'     },
+  { value: 'withdrawn',  label: 'Withdrawn'  },
+];
+
 // CHECK-constrained on tasks.priority. The schema is low/normal/high
 // only — no `urgent` level. Future expansion is a migration.
 export const TASK_PRIORITIES = [
@@ -125,3 +174,11 @@ export const US_STATES = [
 
 export const labelFor = (options, value) =>
   options.find(o => o.value === value)?.label ?? value ?? '—';
+
+// Companion to labelFor for option lists that carry a `description`
+// (selection-helper text). Returns the description for the matching
+// value, or null when the value is unknown or the option has none —
+// callers omit the line entirely on null rather than rendering a
+// dash. Today only PROVIDER_STATUSES carries descriptions.
+export const descriptionFor = (options, value) =>
+  options.find(o => o.value === value)?.description ?? null;

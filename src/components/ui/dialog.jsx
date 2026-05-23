@@ -25,13 +25,33 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 
+// DialogContent is top-anchored (not vertically centered) so its title
+// is never obscured by the suite's fixed primary header (PageHeader,
+// 58px, z-200) — which sits above the dialog's z-50 overlay by design
+// (STATE.md: "chrome bars at z-150 / z-200 sit above overlays so the
+// user can still orient on what page they are on while an overlay
+// is open"). The 1rem cushion sits between PageHeader's bottom and
+// the dialog's top edge.
+//
+// Tall dialogs (e.g. ProviderFormDialog with its many fields and
+// sticky save bar) use their own max-h: max-h-[90vh] + overflow-y-auto
+// to scroll content within the available viewport. The dialog
+// primitive itself doesn't impose a max-h so individual dialogs stay
+// in control of their height.
+//
+// On list pages with a bar-2 (also z-150, additional 56px), the
+// dialog's top will partially overlap with bar-2's lower band — that
+// overlap is intentional per the same orient-while-open convention
+// and is unchanged here. The fix is specifically for the primary-
+// header obscurance, which previously hid the dialog title entirely.
 const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      style={{ top: 'calc(58px + env(safe-area-inset-top) + 1rem)' }}
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        "fixed left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
         className
       )}
       {...props}>

@@ -15,9 +15,13 @@ export default function ActivityFeed({
   showParent = false,
   onDelete,
 }) {
+  // No-card empty / loading state — plain muted text on the page
+  // background, matching the credentialing sections and the Placements
+  // placeholder. Affects every consumer (Provider, Organization,
+  // Opportunity, Home) — intentional consistency improvement.
   if (loading) {
     return (
-      <div className="bg-surface border border-border rounded p-8 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+      <div className="px-6 py-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
         Loading…
       </div>
     );
@@ -25,7 +29,7 @@ export default function ActivityFeed({
 
   if (!activities?.length) {
     return (
-      <div className="bg-surface border border-border rounded p-8 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+      <div className="px-6 py-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
         {emptyText}
       </div>
     );

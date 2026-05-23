@@ -81,21 +81,40 @@ const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (
 ))
 SelectLabel.displayName = SelectPrimitive.Label.displayName
 
-const SelectItem = React.forwardRef(({ className, children, ...props }, ref) => (
+// `description` is optional selection-helper text rendered under the
+// label in the dropdown only — NOT echoed in the trigger when the
+// item is selected (Radix only mirrors what's inside ItemText). When
+// any item in a Select carries a description, the items get
+// items-start + extra vertical padding so the indicator aligns with
+// the label line instead of floating between the two text rows.
+const SelectItem = React.forwardRef(({ className, children, description, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex w-full cursor-default select-none rounded-sm pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      description ? "items-start py-2" : "items-center py-1.5",
       className
     )}
     {...props}>
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+    <span className={cn(
+      "absolute left-2 flex h-3.5 w-3.5 items-center justify-center",
+      description && "top-2.5"
+    )}>
       <SelectPrimitive.ItemIndicator>
         <Check className="h-4 w-4" />
       </SelectPrimitive.ItemIndicator>
     </span>
 
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {description ? (
+      <span className="flex flex-col items-start gap-0.5 min-w-0">
+        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+        <span className="font-mono text-[10px] leading-snug text-text-muted whitespace-normal">
+          {description}
+        </span>
+      </span>
+    ) : (
+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    )}
   </SelectPrimitive.Item>
 ))
 SelectItem.displayName = SelectPrimitive.Item.displayName

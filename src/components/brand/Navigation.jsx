@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
+import { Building2, CalendarClock, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
 import ThemeToggle from './ThemeToggle.jsx';
 import { cn } from '@/lib/utils';
 
 const ITEMS = [
-  { path: '/organizations', label: 'Organizations', icon: Building2   },
-  { path: '/opportunities', label: 'Opportunities', icon: Briefcase   },
-  { path: '/providers',     label: 'Providers',     icon: Stethoscope },
-  { path: '/contacts',      label: 'Contacts',      icon: Users       },
-  { path: '/tasks',         label: 'Tasks',         icon: ListTodo    },
+  { path: '/organizations', label: 'Organizations', icon: Building2     },
+  { path: '/opportunities', label: 'Opportunities', icon: Briefcase     },
+  { path: '/providers',     label: 'Providers',     icon: Stethoscope   },
+  { path: '/contacts',      label: 'Contacts',      icon: Users         },
+  { path: '/tasks',         label: 'Tasks',         icon: ListTodo      },
+  { path: '/expirations',   label: 'Expirations',   icon: CalendarClock },
 ];
 
 export default function Navigation({ onSignOut }) {

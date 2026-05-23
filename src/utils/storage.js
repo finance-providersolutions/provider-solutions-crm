@@ -13,6 +13,26 @@ export function getPublicUrl(bucket, path) {
   return data?.publicUrl ?? null;
 }
 
+// Async sibling for PRIVATE buckets (Phase 3 `credentials`).
+// Wraps createSignedUrl so call sites stay out of the @supabase/*
+// surface. Returns null when bucket/path is missing OR when the
+// signed-URL request fails — the latter logs to console so failures
+// don't go silent, but the caller is expected to render an empty/
+// "couldn't load" state rather than crash. Default 5-minute expiry
+// matches BUILD_PLAN §4.6's credentials-bucket spec; callers can
+// override per use case.
+export async function getSignedUrl(bucket, path, expiresIn = 300) {
+  if (!bucket || !path) return null;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresIn);
+  if (error) {
+    console.error('getSignedUrl failed', { bucket, path, error });
+    return null;
+  }
+  return data?.signedUrl ?? null;
+}
+
 // Initials from a "First Last" or { first_name, last_name } shape.
 // Returns up to 2 uppercase letters; falls back to '?' for empty
 // input so the avatar fallback is never blank.

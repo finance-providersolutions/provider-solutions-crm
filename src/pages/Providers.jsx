@@ -22,21 +22,34 @@ import { fmtName } from '@/utils/formatters';
 import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
-// Status pill colors. In-process stages share the accent treatment;
-// active is the only "currently in revenue" green; inactive /
-// disqualified mute and warn respectively. Same shape and tokens
-// as Organizations.jsx TYPE_BADGE.
+// Status pill colors. Target is pre-engagement (muted); the in-funnel
+// stages share the accent treatment; active is the only "currently
+// in revenue" green; inactive and declined both mute (declined =
+// they walked on their own, not a failure state); disqualified is
+// the only danger tone (we screened them out). The visual split
+// between declined and disqualified is load-bearing — both render
+// in lists, cards, and the detail header, and at-a-glance read is
+// the point. Same shape and tokens as Organizations.jsx TYPE_BADGE.
 export const STATUS_BADGE = {
+  target:       'bg-surface2   text-text-muted border-border',
   lead:         'bg-accent-dim text-accent border-accent/40',
   contacted:    'bg-accent-dim text-accent border-accent/40',
   interested:   'bg-accent-dim text-accent border-accent/40',
   interviewing: 'bg-accent-dim text-accent border-accent/40',
   onboarding:   'bg-accent-dim text-accent border-accent/40',
-  credentialed: 'bg-accent-dim text-accent border-accent/40',
   active:       'bg-income/15  text-income border-income/40',
   inactive:     'bg-surface2   text-text-dim border-border',
+  declined:     'bg-surface2   text-text-dim border-border',
   disqualified: 'bg-danger/15  text-danger border-danger/40',
 };
+
+// Safety net for any status value not present in STATUS_BADGE —
+// covers two cases: (1) live rows still holding the removed
+// `credentialed` value until the reassignment SQL runs, and
+// (2) future schema drift if a new status is added to the constant
+// without a matching badge entry. The neutral surface tone keeps
+// the row readable without inventing semantic meaning.
+export const STATUS_BADGE_FALLBACK = 'bg-surface2 text-text-muted border-border';
 
 const SORT_DEFAULT = 'default';
 const SORT_NEWEST  = 'newest';
@@ -519,7 +532,7 @@ function ProviderCard({ provider: p, taskSummary, onClick, onEdit, onArchiveTogg
   const statusBadge = p.status ? (
     <Badge variant="outline" className={cn(
       'flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.1em]',
-      STATUS_BADGE[p.status],
+      STATUS_BADGE[p.status] ?? STATUS_BADGE_FALLBACK,
     )}>
       {labelFor(PROVIDER_STATUSES, p.status)}
     </Badge>

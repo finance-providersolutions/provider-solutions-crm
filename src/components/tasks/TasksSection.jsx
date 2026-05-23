@@ -164,6 +164,35 @@ export default function TasksSection({ parentColumn, parentId, parentLabel }) {
 
 function TaskMiniTable({ rows, loading, error, emptyText, showQuickComplete, onEdit, onQuickComplete }) {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  // No-card loading / error / empty states — plain muted text on the
+  // page background, matching the credentialing sections and the
+  // activity feed. Only the populated case carries the table-card.
+  // Affects every consumer (Provider, Organization, Opportunity) —
+  // intentional consistency improvement. Row layout and on-click
+  // behavior when populated are unchanged.
+  if (loading) {
+    return (
+      <div className="px-6 py-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+        Loading…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="px-6 py-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-danger">
+        {error.message}
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="px-6 py-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
+        {emptyText}
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface border border-border rounded relative overflow-hidden">
       <Table>
@@ -177,16 +206,7 @@ function TaskMiniTable({ rows, loading, error, emptyText, showQuickComplete, onE
           </TableRow>
         </TableHeader>
         <TableBody>
-          {loading && (
-            <TableRow><TableCell colSpan={showQuickComplete ? 5 : 4} className="text-center text-text-muted py-8 font-mono text-xs uppercase tracking-[0.1em]">Loading…</TableCell></TableRow>
-          )}
-          {!loading && error && (
-            <TableRow><TableCell colSpan={showQuickComplete ? 5 : 4} className="text-center text-danger py-8 font-mono text-xs">{error.message}</TableCell></TableRow>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <TableRow><TableCell colSpan={showQuickComplete ? 5 : 4} className="text-center py-8 text-text-dim">{emptyText}</TableCell></TableRow>
-          )}
-          {!loading && !error && rows.map(t => {
+          {rows.map(t => {
             const overdue = t.status === 'open' && t.due_date && t.due_date < today;
             return (
               <TableRow key={t.id} className="border-border hover:bg-surface2 transition-colors">

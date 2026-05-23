@@ -223,7 +223,11 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
               <Select value={values.status || undefined} onValueChange={(v) => setValues(s => ({ ...s, status: v }))}>
                 <SelectTrigger className="bg-bg border-border text-text"><SelectValue placeholder="—" /></SelectTrigger>
                 <SelectContent>
-                  {PROVIDER_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  {PROVIDER_STATUSES.map(s => (
+                    <SelectItem key={s.value} value={s.value} description={s.description}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>
