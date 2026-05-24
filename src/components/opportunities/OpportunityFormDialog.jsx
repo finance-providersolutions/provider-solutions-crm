@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog, DialogContent, DialogDescription,
@@ -14,8 +15,9 @@ import { Textarea } from '@/components/ui/textarea';
 import OrganizationCombobox from '@/components/opportunities/OrganizationCombobox';
 import {
   OPPORTUNITY_SETTINGS, OPPORTUNITY_STAGES, POSITION_TYPES,
-  SPECIALTIES, US_STATES,
+  REQUIREMENT_ITEMS, SPECIALTIES, US_STATES,
 } from '@/utils/constants';
+import { cn } from '@/lib/utils';
 import { scrollToFirstError } from '@/utils/form';
 
 // Schema-mirrored EMPTY. NOT NULL DEFAULT 0 columns
@@ -69,6 +71,10 @@ const EMPTY = {
   stage:                            '',
   probability:                      '',
   notes:                            '',
+
+  // Credentialing requirements (0007). Tracked as a Set in form
+  // state for O(1) toggle; serialized to a string[] on save.
+  required_items:                   new Set(),
 };
 
 function numOrZero(v) {
@@ -210,6 +216,14 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
         stage:                          strOrNull(values.stage),
         probability:                    intOrNull(values.probability),
         notes:                          strOrNull(values.notes),
+
+        // Serialize Set → string[] in REQUIREMENT_ITEMS order so the
+        // stored array reads predictably (rather than in toggle
+        // order). Empty Set → empty array, which the readiness
+        // helper treats the same as null (REQUIREMENTS_UNDEFINED).
+        required_items:                 REQUIREMENT_ITEMS
+          .map(r => r.value)
+          .filter(v => values.required_items.has(v)),
       };
       await onSave(payload);
       toast.success(isEdit ? 'Opportunity updated' : 'Opportunity created');
@@ -451,6 +465,47 @@ export default function OpportunityFormDialog({ open, onOpenChange, opportunity,
             </Field>
           </Section>
 
+          <Section title="Requirements">
+            <div className="font-mono text-[11px] text-text-dim -mt-1 mb-1">
+              Credentialing items a provider must hold to work this opportunity. Drives readiness on the suggested-providers list.
+            </div>
+            <ul className="divide-y divide-border/40 border border-border/40 rounded">
+              {REQUIREMENT_ITEMS.map(item => {
+                const on = values.required_items.has(item.value);
+                return (
+                  <li key={item.value}>
+                    <button
+                      type="button"
+                      onClick={() => setValues(v => {
+                        const next = new Set(v.required_items);
+                        if (next.has(item.value)) next.delete(item.value);
+                        else next.add(item.value);
+                        return { ...v, required_items: next };
+                      })}
+                      aria-pressed={on}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface2/40 transition-colors"
+                    >
+                      <span className={cn(
+                        'w-7 h-7 inline-flex items-center justify-center rounded border transition-colors',
+                        on
+                          ? 'border-income text-income bg-income/10'
+                          : 'border-border text-transparent',
+                      )}>
+                        <Check className="w-4 h-4" strokeWidth={2.5} />
+                      </span>
+                      <span className={cn(
+                        'font-mono text-[11px] uppercase tracking-[0.12em]',
+                        on ? 'text-text' : 'text-text-dim',
+                      )}>
+                        {item.label}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </Section>
+
           {/* Phone: Cancel-above-Save full-width, sticky to dialog scroll bottom (decision #5).
               Desktop: inline-right, no stick. Canonical pattern from B4. */}
           <div className="
@@ -527,6 +582,8 @@ function hydrate(o) {
     stage:                            o.stage ?? '',
     probability:                      o.probability ?? '',
     notes:                            o.notes ?? '',
+
+    required_items:                   new Set(Array.isArray(o.required_items) ? o.required_items : []),
   };
 }
 

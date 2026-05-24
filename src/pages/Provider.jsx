@@ -11,9 +11,8 @@ import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
-import LicensesSection from '@/components/credentialing/LicensesSection';
-import CredentialsSection from '@/components/credentialing/CredentialsSection';
-import FacilityPrivilegesSection from '@/components/credentialing/FacilityPrivilegesSection';
+import CredentialingSection from '@/components/credentialing/CredentialingSection';
+import OnboardingSection from '@/components/credentialing/OnboardingSection';
 import { useProvider, useProviders } from '@/hooks/useProviders';
 import { useActivities } from '@/hooks/useActivities';
 import { useChromeBottom } from '@/hooks/useChromeBottom';
@@ -302,22 +301,28 @@ export default function Provider() {
             </DetailGrid>
           )}
 
-          {/* 2. Credentialing cluster — one header above three sub-groups.
-                Sub-headings use a quieter mono-cap treatment so the
-                three read as one unit under the master "Credentialing"
-                title. The three section components themselves are
-                unchanged (rows, kebab, form dialogs, etc.). */}
+          {/* 2. Onboarding — moved above Credentialing to mirror the
+                real lifecycle (onboard, then credential). Status line
+                ("N of 3 complete") + thin progress bar live OUTSIDE
+                the collapsible so the glance state is always visible;
+                the checklist itself is hidden behind the shared
+                CollapsibleSection by default. Derived license/DEA rows
+                used to live here under a "From credentialing"
+                sub-group; that information now lives in the
+                Credentialing status summary below. */}
+          <SectionHeader text="Onboarding" />
+          <OnboardingSection providerId={provider.id} />
+          <div className="mb-10" />
+
+          {/* 3. Credentialing — three subsections (licenses / core /
+                privileges) sit behind a single CollapsibleSection. A
+                3-line worst-status-per-group summary above the
+                collapsed line is always visible. Subsection components
+                themselves are unchanged — same rows, same kebab, same
+                form dialogs — just hidden behind the collapsed line
+                by default. */}
           <SectionHeader text="Credentialing" />
-          <SubGroupHeader text="State licenses" />
-          <LicensesSection providerId={provider.id} />
-          <div className="mt-6">
-            <SubGroupHeader text="Core credentials" />
-            <CredentialsSection providerId={provider.id} />
-          </div>
-          <div className="mt-6">
-            <SubGroupHeader text="Facility privileges" />
-            <FacilityPrivilegesSection providerId={provider.id} />
-          </div>
+          <CredentialingSection providerId={provider.id} />
           <div className="mb-10" />
 
           {/* 3. Activity — Provider-local pattern: "+ New activity"
@@ -435,17 +440,6 @@ function DetailField({ label, full = false, children }) {
     <div className={full ? 'md:col-span-2' : ''}>
       <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">{label}</div>
       <div className="text-text text-sm leading-snug">{children}</div>
-    </div>
-  );
-}
-
-// Sub-group heading inside the Credentialing cluster — quieter than
-// the diamond-bracketed SectionHeader so the three sub-groups read
-// as one unit under the master title. Left-aligned mono cap label.
-function SubGroupHeader({ text }) {
-  return (
-    <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-accent mb-3">
-      {text}
     </div>
   );
 }

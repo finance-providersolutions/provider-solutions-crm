@@ -14,9 +14,14 @@ import { useAuth } from '@/hooks/useAuth';
 // nested-object shape is fine to consume directly. If volume grows
 // to where double-joining the same parent table on every row hurts,
 // switch to a separate `useOrganizationsById` lookup map.
+// Hospital branch carries city + state so credentialing readiness
+// (deriveShiftReadiness in src/components/credentialing/readiness.js)
+// can resolve the opportunity's licensure state without a second
+// fetch. Intentionally NOT mirrored onto the source-partner branch —
+// partner geography isn't a readiness input.
 const SELECT_WITH_ORGS = `
   *,
-  organization:organizations!opportunities_organization_id_fkey(id, name, type, logo_path),
+  organization:organizations!opportunities_organization_id_fkey(id, name, type, logo_path, city, state),
   source_partner:organizations!opportunities_source_partner_id_fkey(id, name)
 `;
 

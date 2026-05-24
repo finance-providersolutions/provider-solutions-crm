@@ -15,7 +15,7 @@ import { useOpportunity, useOpportunities } from '@/hooks/useOpportunities';
 import { useActivities } from '@/hooks/useActivities';
 import {
   OPPORTUNITY_SETTINGS, OPPORTUNITY_STAGES, POSITION_TYPES,
-  SPECIALTIES, labelFor,
+  REQUIREMENT_ITEMS, SPECIALTIES, labelFor,
 } from '@/utils/constants';
 import { fmtCurrency, fmtDate, fmtDateTime } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
@@ -226,12 +226,15 @@ export default function Opportunity() {
         <div className="mb-10" />
 
         <SectionHeader text="Suggested providers" />
-        <div className="bg-surface border border-border rounded p-8 text-center mb-10">
-          <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
-            No suggestions yet
-          </div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mt-1.5">
-            Phase 4 — matching by specialty / state / credentials
+        <div className="bg-surface border border-border rounded p-6 mb-10 space-y-4">
+          <RequirementsReadout items={opp.required_items} />
+          <div className="border-t border-border/40 pt-4 text-center">
+            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
+              No suggestions yet
+            </div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mt-1.5">
+              Phase 4 — matching by specialty / state / credentials
+            </div>
           </div>
         </div>
 
@@ -318,6 +321,32 @@ function RateCell({ label, value, mono = false }) {
       <div className={cn('text-text', mono ? 'font-mono text-sm' : 'font-mono text-sm')}>
         {value}
       </div>
+    </div>
+  );
+}
+
+function RequirementsReadout({ items }) {
+  const list = Array.isArray(items) ? items : [];
+  if (list.length === 0) {
+    return (
+      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
+        Requirements not defined
+      </div>
+    );
+  }
+  // Render in REQUIREMENT_ITEMS order so the display reads predictably
+  // regardless of how the array was authored.
+  const labels = REQUIREMENT_ITEMS
+    .filter(r => list.includes(r.value))
+    .map(r => r.label);
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2">
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
+        Requires
+      </span>
+      <span className="font-mono text-[11px] text-text">
+        {labels.join(' · ')}
+      </span>
     </div>
   );
 }

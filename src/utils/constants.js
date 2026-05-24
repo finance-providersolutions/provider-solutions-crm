@@ -133,6 +133,26 @@ export const CREDENTIAL_TYPES = [
   { value: 'other',               label: 'Other'               },
 ];
 
+// Opportunity credentialing requirements (0007). The picker on
+// OpportunityFormDialog renders this list as toggle rows and writes
+// the selected `value` keys into opportunities.required_items.
+// `deriveShiftReadiness` (src/components/credentialing/readiness.js)
+// gates every dimension on these exact strings — adding a new item
+// here without teaching the helper to evaluate it means it's
+// rendered but ignored. Order is intentional: license bookends the
+// portable list, core credentials in the middle, facility privilege
+// bookends the facility side. Core credentials are sourced from
+// CREDENTIAL_TYPES (above) so the labels stay in lockstep; 'other'
+// is intentionally excluded — it's a catch-all with no enum
+// identity and can't satisfy a typed requirement.
+export const REQUIREMENT_ITEMS = [
+  { value: 'license', label: 'State license' },
+  ...CREDENTIAL_TYPES
+    .filter(c => c.value !== 'other')
+    .map(c => ({ value: c.value, label: c.label })),
+  { value: 'privilege', label: 'Facility privileges' },
+];
+
 // CHECK-constrained on credentials.status (0004). Same set as
 // LICENSE_STATUSES today; kept as separate exports so future
 // divergence (e.g., credentials adding 'suspended') doesn't require

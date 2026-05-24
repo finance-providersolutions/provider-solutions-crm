@@ -1,0 +1,37 @@
+-- =============================================================
+-- Provider Solutions CRM — opportunity required_items
+--
+-- Phase 3b piece two: opportunity requirements as data. Drives the
+-- credentialing readiness helper at
+-- src/components/credentialing/readiness.js, which gates every
+-- dimension on whether its key appears in this array.
+--
+-- Single column on opportunities:
+--   required_items text[]  — nullable, NO default, NO CHECK.
+--
+-- Why nullable with no default:
+--   The readiness helper treats null and empty-array identically
+--   (short-circuit to overall:'indeterminate', single reason
+--   REQUIREMENTS_UNDEFINED). Distinct semantics ("never set" vs
+--   "explicitly set to none") aren't load-bearing today, so null
+--   is the right starting state for the ~4 existing opportunities
+--   — the recruiter sets requirements deliberately via the picker
+--   in OpportunityFormDialog. A default of '{}' would lie: it would
+--   read as "explicitly set to no requirements" the moment the
+--   migration ran.
+--
+-- Why no CHECK:
+--   Same trust model as modeling_assumptions (0002): the picker is
+--   the only writer and only writes valid keys drawn from
+--   REQUIREMENT_ITEMS in src/utils/constants.js. Adding a CHECK
+--   that enumerated the seven legal values would couple every
+--   future addition of a credential type to a schema migration,
+--   without buying meaningful safety — there is no other writer.
+--
+-- Migrations are immutable once shipped. Never edit this file
+-- after it has been applied to a Supabase environment — add a
+-- new numbered migration instead.
+-- =============================================================
+
+alter table public.opportunities
+  add column required_items text[];
