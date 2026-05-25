@@ -1,0 +1,101 @@
+# DESIGN-NOTES — page-design decisions and known inconsistencies
+
+This is a build-then-polish design ledger for the CRM. The app is built section by section, with presentation decisions made locally as each section comes to life. That approach is deliberate — it lets each slice ship a working surface without re-litigating cross-page consistency every time — but it produces small visual and pattern inconsistencies between sections built at different points in the arc, and the reasoning behind each local choice is easy to lose by the time the polish pass arrives.
+
+This file records those page-design decisions and known inconsistencies as they happen, so the eventual polish pass starts with the full accumulated context in one place to reconcile from. It is distinct from STATE.md (a snapshot of what is true right now in the app) and ROADMAP.md (what is planned next) — this is append-mostly design history, polish-pass-facing. Each future slice should append any new page-design decisions or noticed inconsistencies here as part of its doc pass.
+
+## Provider detail page
+
+The reference shape for detail pages. Fixed condensed header below the primary PageHeader carries the photo, name, contact row, badges, and the Edit button. The header height is measured at runtime and published to a `--ps-chrome-bottom` CSS variable so dialogs opened from this page anchor below all fixed chrome. No other detail page does the fixed-header + measured-chrome thing yet — Provider is the only consumer of that pattern.
+
+Body section order is Details, Onboarding, Credentialing, Hospital Standing, Activity, Tasks, Delete. Details uses the header-less DetailsCollapsibleHeader pattern (chevron + bold mono cap label + gradient rule fading right), default-collapsed, with a bare dense label-value grid below (no card wrapper, gap-y-3, smaller text-sm/leading-snug field values). Onboarding, Credentialing, and Hospital Standing form a "standing cluster" all using the B box convention — bg-surface-well container with full teal border + gradient rule, summary always-visible inside the container top, content behind a CollapsibleSection. Onboarding and Credentialing default-collapse; Hospital Standing default-OPENS because its three-line summary isn't self-sufficient — the payload is the per-hospital detail.
+
+Activity uses a Provider-local "+ New activity" button that toggles the LogActivityForm open and closed. This is the only detail page using the toggle pattern — the other detail pages still show the activity form always-visible (see Cross-page divergences below).
+
+Hospital Standing replaces the original Phase-2 Placements stub. Cross-grain lifecycle-standing view (hospital-keyed outer-join of placements and facility_privileges). The collapsible inside is labeled "Standing Details"; per-hospital cards surface four distinct cases: backed-overlap, privilege-only, the selected-without-privilege FLAG, and selected-with-pending-privilege. See ProviderPlacementsSection.jsx for details.
+
+## Opportunity detail page
+
+Header is the flowing-content style (no fixed header, no thumb): title, optional "via [partner name]", stage badge, Created stamp, Edit button. Section order: Details, Provider Availability, Rate structure, GP modeler, Activity, Tasks, Delete. This order is INTERIM (completeness-driven) — the finished Provider Availability leads, the unfinished Rate structure / GP modeler / Activity sections cascade below in their prior relative order. Final order is a polish-phase decision. See the "Opportunity-page section order is INTERIM" note below for details.
+
+The first section was renamed Overview → Details to align with every other detail page; the previously-logged naming drift is resolved. Details now uses the shared DetailsCollapsibleHeader one-off (default-collapsed, header-less primary-section pattern, bare DetailGrid below when expanded, no card wrapper) matching Provider and Organization Details.
+
+Provider Availability sits in the B box convention — bg-surface-well container with full teal border + bottom gradient rule, carrying the Requirements readout at top, a divider, and the SuggestedProviders matching surface below. Rate structure and GP modeler still sit inside the older bg-surface card wrapper (unchanged this pass); Activity and Tasks render as bare sections without a card wrapper. The presented-data-in-card vs interactive-rolling-section-bare split is the implicit convention for the still-unmigrated sections.
+
+The Provider Availability section (renamed from "Suggested providers" in the lifecycle-visibility slice) is the matching surface: four compact TierKPICards above four CollapsibleSection tiers in lifecycle order. See the Matching surface notes below for the cross-cutting decisions that live in it.
+
+Activity form is always-visible (see Cross-page divergences).
+
+## Organization detail page
+
+Header is the flowing-content style with a square logo thumb left of the title cluster. Section order: Details, then (hospital-only) Privilege Roster and Opportunities, then Contacts, Activity, Tasks, Delete.
+
+Details now uses the DetailsCollapsibleHeader pattern matching the Provider page — chevron + bold mono cap label + gradient rule, default-collapsed, bare DetailGrid below (no card wrapper). This was corrected during the lifecycle-visibility slice; it had previously used the shared CollapsibleSection by mistake, which is the labeled-sub-group pattern (used by Onboarding / Credentialing / tier groups), not the header-less primary-section pattern that "Details" calls for.
+
+Privilege Roster and Opportunities are hospital-only sections — they render only when `org.type === 'hospital'`. This is gating, not a UX inconsistency. Both sit in the B box convention — bg-surface-well container with full teal border + gradient rule, with bg-surface Level-2 record cards for each privilege row and each opportunity row. The Privilege Roster reuses the TierKPICard + CollapsibleSection accordion pattern from the opportunity page, with the same well-aware focused/unfocused elevation treatment.
+
+Contacts list sits in its own bg-surface card with `divide-y` per-row separators. Activity form is always-visible. The Contacts SectionHeader had a stale wrapping div from when an inline "Add contact" button sat with it; the wrapper was removed during the lifecycle-visibility slice so the text re-centers between its rules.
+
+## Contact detail page
+
+Slice-4 minimal-mirror-Provider shape: flowing header (no thumb, name + role badge + Created + Edit), one Details section, page-level Delete at the bottom. No Activity or Tasks — activities don't link to contacts directly (schema gap noted in STATE.md), and tasks don't either.
+
+Details uses the older `SectionHeader text="Details" first` plus a bg-surface-card-wrapped DetailGrid, always-visible. Has not been migrated onto the DetailsCollapsibleHeader pattern that Provider and Organization now share.
+
+## Task detail page
+
+Same Slice-4 minimal-mirror-Provider shape as Contact: flowing header (no thumb, title + priority badge + status badge + Created + Edit), one Details section, page-level Delete at the bottom. Edit dialog has `hideDeleteAction` set so the in-dialog Delete is suppressed — the page-level Delete is canonical.
+
+Details uses the same older `SectionHeader text="Details" first` plus bg-surface-card-wrapped DetailGrid, always-visible. Like Contact, not on the DetailsCollapsibleHeader pattern.
+
+## Matching surface — SuggestedProviders and Privilege Roster
+
+Two surfaces, one tier-and-accordion pattern. Both render a row of compact TierKPICards above CollapsibleSection tiers with dual-mode interaction — clicking a KPI card opens that tier and collapses the others (the card showing an accent focused-state), per-tier chevrons remain independent so multiple sections can be open at once, and chevron-opens plus an Expand All button clear the card focus deliberately because the "this is the focused tier" claim no longer holds when several are open. Default load opens the highest-ranked non-empty tier with its card accented.
+
+Eligible badge tone is `text-text` (white), not `text-income` (green). Teal was already saturated in the Suggested Providers section (provider names render in accent teal, the Selected lifecycle label uses accent teal, the Selected count chip uses accent teal, the Selected-row left border is accent teal), and green was taken by Privileged — white reads as "qualified, in the pool, no special status" without colliding. Decision is recorded so polish doesn't re-litigate it.
+
+Verdict label for the requirements-undefined case currently reads "Incomplete". The label was chosen partly because "Indeterminate" reads awkwardly in mono caps, but "Incomplete" arguably reads as a provider-record gap rather than an opportunity (no requirements set) gap. Open wording question for polish — already flagged in the ROADMAP polish-pass entry.
+
+Mobile row layout on the opportunity page tiers drops the redundant position+specialty meta (constant across the filtered list since specialty and position type are hard eligibility filters) and keeps home state alone on a lower line with the status indicator right-aligned alongside it. Desktop keeps the full position·specialty·state meta with status inline next to the name. This responsive treatment is opportunity-page-only.
+
+Hospital Privilege Roster rows were assessed but left as-is during the same slice. Position and specialty are NOT redundant on the roster (it shows providers across any specialty/position who hold a privilege at the hospital), so the opportunity-page mobile fix would lose useful varying info. Rows fit cleanly at 380px on current seed data because names are short and the roster has no per-row action button (more horizontal slack than the opp-page rows). If real provider names grow long enough to crowd the right-aligned status, the planned treatment is to move status to a small inline pill at the LEFT of the meta line so the full position·specialty·state info still flows to its right — preserves all per-row variation. Recorded in the ROADMAP polish-pass entry and in STATE.md Known issues.
+
+## Shared components and patterns
+
+Two collapsible patterns coexist by design. **DetailsCollapsibleHeader** (`src/components/ui/details-collapsible-header.jsx`) is the header-less primary-section pattern: chevron + bold mono cap accent label + gradient rule fading right, sits at the top of a detail page as the section's own header. Used by Provider and Organization for their Details sections. **CollapsibleSection** (`src/components/ui/collapsible-section.jsx`) is the labeled-sub-group pattern: smaller mono cap label with a quieter rule, sits BELOW a diamond SectionHeader as the section's collapsed-body affordance. Used by Onboarding, Credentialing, the four opportunity Provider Availability tier groups, and the two hospital Privilege Roster tier groups. CollapsibleSection has both uncontrolled mode (defaultOpen) and an optional controlled mode (open + onOpenChange) — the controlled mode was added during the lifecycle-visibility slice so a parent can coordinate the tier groups' accordion; uncontrolled consumers are unchanged.
+
+Two KPI card sizes coexist. The brand **KPICard** is the original Home flagship card (large value, sub line, drillable, p-5 padding). The compact **TierKPICard** sibling lives in the same file (sharing VALUE_COLOR) for tier-count rows that need four cards across at 380px — same visual grammar at quarter the footprint, no sub slot, tighter padding, smaller fonts, accepts onClick and a focused state. Original KPICard is unchanged; Home is its only consumer. Polish may want to formalize the variant relationship or unify under a `size` prop.
+
+## Cross-page divergences worth reconciling in polish
+
+**Details section pattern.** Provider, Organization, and Opportunity now all use DetailsCollapsibleHeader (default-collapsed, bare grid, no card wrapper). Contact and Task still use the older `SectionHeader text="Details" first` plus an always-visible bg-surface-card-wrapped DetailGrid. The polish pass should migrate Contact and Task onto DetailsCollapsibleHeader for full consistency.
+
+**DetailGrid duplication.** Every detail page declares its own local `DetailGrid` and `DetailField` functions. Provider's version uses `gap-y-3 mb-10` with `text-sm leading-snug` field values; the others use `gap-y-6` with no margin and default text size. Worth extracting to a shared component during polish so the visual rhythm matches across pages.
+
+**Activity form pattern.** Provider uses a "+ New activity" toggle button that opens the LogActivityForm only on demand. Organization and Opportunity render the LogActivityForm always-visible. The toggle pattern hasn't been propagated yet — polish should either apply the toggle pattern consistently or decide always-visible is fine and revert Provider.
+
+**Fixed header + chrome-bottom publishing.** Provider is the only detail page with a fixed condensed header and a `useChromeBottom` call that lets the shared Dialog primitive anchor below it. The other detail pages flow their headers as normal content. If the polish pass wants persistent identity-row chrome on the other detail pages, this is the pattern to lift.
+
+**Edit button shape.** All detail pages use the same accent-bg + mono-cap "Edit" button with a Pencil icon. Provider shows the icon-only on mobile (`hidden sm:inline sm:ml-1.5` on the label) and reduces padding to `h-9 px-2.5 sm:px-3`; the others always show icon + "Edit" at the default Button padding. Minor divergence.
+
+**Empty-state copy and tone.** Empty states vary mildly: mono uppercase wrapped in a bg-surface card (the Org Contacts list — "No contacts yet."); mono uppercase as plain centered text on the section background (ActivityFeed — "No activity logged yet."; TasksSection — "No open tasks for this opportunity."); plain uppercase mono inside a section's surface card (HospitalPrivilegeRoster — "No providers privileged or applied at this hospital yet."; HospitalOpportunityList — "No opportunities at this hospital yet."; SuggestedProviders — "No providers are currently eligible for this opportunity."). Tone class also varies between `text-text-muted` and `text-text-dim`. Worth a one-pass alignment.
+
+## Provider Availability tiers (Matching surface) — intentional precedence
+
+**Tier precedence is intentional — privilege wins over selection.** The four tiers reflect lifecycle progression: Eligible → Selected → Applied → Privileged & Ready. A provider at multiple stages is bucketed to their FURTHEST stage, and tiers display most-advanced-first (Privileged & Ready above Selected + Applied). `deriveLifecycle` in SuggestedProviders.jsx checks active privilege → applied privilege → placement → eligible in that order, which is correct. An investigation proposed inverting this ("Selected wins") plus reordering tier display; both were DECLINED because the inversion contradicts lifecycle progression and would suppress the expiring-privilege warning (`lifecycle.stage === 'privileged' && lifecycle.expiring`) for selected-and-privileged providers — dropping an important operational signal. Do not re-apply.
+
+**Empty-tier suppression caveat.** Empty tiers are hidden in the rendered list. Side effect: if you Select a provider who is already privileged-and-ready, they correctly stay in Privileged & Ready (lifecycle didn't change) and the Selected tier — being empty — disappears from view. This can LOOK like the selection vanished. Working as designed; noted so it isn't mistaken for a bug again. (Optional future enhancement, NOT now: a Privileged & Ready provider who is also selected for THIS opportunity could show a small composite "also selected" cue, surfacing both the hospital-grain privilege and the opportunity-grain selection rather than the stronger stage masking the weaker — resolves the grain split inside the row display. Logged as a maybe-later, not a task.)
+
+**Within-tier sort: selected sorts above applied inside Selected + Applied.** `LIFECYCLE_RANK` was tweaked so `selected = 1, applied = 2` (was the inverse). The reasoning: across the full lifecycle chain, applied is later than selected — but within the combined Selected + Applied tier, the recruiter-authored placement (selected) is a stronger commit than an in-flight privilege application (applied), so it deserves the top of the within-tier list. The cross-tier progression order (later stages display higher) is unaffected.
+
+**Opportunity-page section order is INTERIM (completeness-driven).** Current order is Details → Provider Availability → Rate structure → GP modeler → Activity → Tasks → Delete. Provider Availability leads because it's the finished section; the other Opportunity-page sections (Rate structure, GP modeler, Activity) are unfinished and were cascaded below to signal that — they kept their existing relative order. This is NOT the intended final structure; the polish phase will resort the Opportunity page once those sections are complete. Don't mistake the lead position of Provider Availability for a permanent IA decision.
+
+**Records-are-cards is conditional, not unconditional.** Level-2 record carding (bg-surface inside a bg-surface-well container) applies when records sit DIRECTLY in a section container — e.g. the Org Privilege Roster rows, the Org Opportunities rows, the credentialing license/credential/privilege rows. But when records are already nested inside an intermediate grouping (e.g. the Provider Availability lifecycle tiers — Privileged & Ready / Selected + Applied / Suggested / Blocked — each its own CollapsibleSection with provider rows inside), the rows stay PLAIN to avoid box-in-box-in-box clutter. The intermediate grouping IS the structure; carding the inner rows on top would over-nest. This is a conditional in the B convention, not an inconsistency — polish shouldn't "fix" the Provider Availability rows to match the Privilege Roster.
+
+**TierKPICard elevation flipped to match the B-well parent.** The shared TierKPICard (consumed by both Opportunity's Provider Availability and Org's Privilege Roster — both now sit in bg-surface-well containers) used to be bg-surface2 unfocused / bg-accent-dim focused — which against the dark well visually inverted the elevation (the brighter unfocused cards popped, the barely-tinted focused card receded). Swapped to bg-surface focused (record-shade, forward/raised) / bg-surface-well unfocused (recedes into the well). When no card is focused (Expand All or chevron-driven multi-open), all four cards read receded uniformly — preserves the existing focused-state logic, just fixes the static treatment. Shared-component change; both consumer pages improved together.
+
+## Going-forward convention
+
+Each future slice's doc pass should append any new page-design decisions or noticed inconsistencies to this file alongside the STATE.md and ROADMAP.md updates. Keep entries tight — a sentence or two each — and group them by page/surface so the polish pass can scan. The ledger stays current without backfilling.
+
+The polish pass is sequenced last on purpose so presentation isn't re-polished as the app's patterns keep evolving. When it arrives, this file is the input it reconciles from.

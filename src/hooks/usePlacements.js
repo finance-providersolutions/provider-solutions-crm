@@ -102,4 +102,54 @@ export function usePlacements(opportunityId) {
   return { data, loading, error, refetch, selectProvider, unselectProvider };
 }
 
+// ── Provider-scoped read for the provider-page Placements section.
+// The opportunity-scoped usePlacements above doesn't fit here — that
+// returns placement rows for ONE opportunity, the inverse axis. This
+// hook returns every non-cancelled placement for ONE provider, with
+// the opportunity AND its parent hospital eager-joined so the cross-
+// grain view can render opportunity title + hospital identity without
+// an N+1. Read-only (no select/unselect; that surface stays on the
+// opportunity page where the recruiter does the commit). Co-located
+// with the opportunity-scoped hook because both live against the same
+// placements table and share the same status-allowlist constant.
+//
+// Both joins use explicit FK-constraint disambiguation: opportunities
+// references organizations twice (organization_id + source_partner_id)
+// so the nested organization select must name the FK to avoid an
+// ambiguous-relationship error.
+export function useProviderPlacements(providerId) {
+  const [data, setData]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+
+  const refetch = useCallback(async () => {
+    if (!providerId) {
+      setData([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const { data: rows, error: err } = await supabase
+      .from('placements')
+      .select(
+        '*, opportunity:opportunities!placements_opportunity_id_fkey(' +
+          'id, title, organization_id, position_type, specialty, setting, ' +
+          'organization:organizations!opportunities_organization_id_fkey(' +
+            'id, name, city, state, logo_path' +
+          ')' +
+        ')',
+      )
+      .eq('provider_id', providerId)
+      .in('status', SELECTED_LIFECYCLE_STATUSES);
+    if (err) { setError(err); setLoading(false); return; }
+    setData(rows ?? []);
+    setLoading(false);
+  }, [providerId]);
+
+  useEffect(() => { refetch(); }, [refetch]);
+
+  return { data, loading, error, refetch };
+}
+
 export { SELECTED_LIFECYCLE_STATUSES };

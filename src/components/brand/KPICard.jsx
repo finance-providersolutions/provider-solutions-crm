@@ -18,16 +18,24 @@ const VALUE_COLOR = {
 //
 // `focused` indicates this card drove the current open state — set
 // either by an explicit card click or as the default-open tier on
-// first load. It earns a strong accent treatment (accent border + a
-// faint accent-dim fill + brightened label) so the user can tell
-// "this is the tier the page is focused on" at a glance. A section
-// opened only via its CollapsibleSection chevron does NOT light its
-// card — multi-open via chevrons is a different mode and clears card
-// focus deliberately.
+// first load. It earns the FORWARD/raised treatment (bg-surface + a
+// teal accent border + inset ring + brightened label) so the user
+// can tell "this is the tier the page is focused on" at a glance. A
+// section opened only via its CollapsibleSection chevron does NOT
+// light its card — multi-open via chevrons is a different mode and
+// clears card focus deliberately, leaving ALL cards in the receded
+// state.
 //
-// Uses bg-surface2 (or bg-accent-dim when focused) so the tier cards
-// sit one tonal step above their parent (which is typically the
-// bg-surface section card) and read as nested chips.
+// Elevation against the parent dark-well container (bg-surface-well,
+// the B-convention Level-1 container shade):
+//   • FOCUSED   → bg-surface (record shade) — pops forward above the well.
+//   • UNFOCUSED → bg-surface-well (same fill as the parent) — recedes
+//     into the well, with the soft teal-alpha border outlining each
+//     card as a tappable slot. When NO card is focused (after Expand
+//     All or chevron-driven multi-open), all four cards read receded
+//     and read as "available, none picked." Previously used
+//     bg-surface2 here, which against the dark well visually inverted
+//     the elevation (unfocused cards popped, focused recessed).
 export function TierKPICard({
   label,
   value,
@@ -52,8 +60,8 @@ export function TierKPICard({
         'flex flex-col justify-center items-center text-center',
         'after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-30',
         focused
-          ? 'bg-accent-dim border-accent shadow-[inset_0_0_0_1px_rgba(126,232,232,0.35)]'
-          : 'bg-surface2 border-border/60',
+          ? 'bg-surface border-accent shadow-[inset_0_0_0_1px_rgba(126,232,232,0.35)]'
+          : 'bg-surface-well border-border/60',
         clickable && !focused && 'hover:border-accent/60 cursor-pointer',
         !clickable && 'cursor-default',
       )}

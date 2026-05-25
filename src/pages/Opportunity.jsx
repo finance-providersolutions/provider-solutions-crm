@@ -12,6 +12,7 @@ import SuggestedProviders from '@/components/opportunities/SuggestedProviders';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
+import { DetailsCollapsibleHeader } from '@/components/ui/details-collapsible-header';
 import { useOpportunity, useOpportunities } from '@/hooks/useOpportunities';
 import { useActivities } from '@/hooks/useActivities';
 import {
@@ -32,6 +33,10 @@ export default function Opportunity() {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
+  // Details collapsed by default — matches the Provider and Org Details
+  // one-off. Uses the shared DetailsCollapsibleHeader so this page's
+  // first section reads in lockstep with the other detail pages.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const deleteOppTriggerRef = useRef(null);
   const activityDeleteTriggerRef = useRef(null);
 
@@ -116,10 +121,17 @@ export default function Opportunity() {
           </Button>
         </div>
 
-        <SectionHeader text="Overview" first />
-        <div className="bg-surface border border-border rounded p-6 mb-10
-                        relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
-                        after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+        {/* 1. Details — renamed from "Overview" to align with every
+              other detail page (Provider / Org / Contact / Task), and
+              switched to the shared DetailsCollapsibleHeader one-off
+              (default-collapsed, no card wrapper) matching Provider/
+              Org Details. The bare dense DetailGrid below renders only
+              when expanded. */}
+        <DetailsCollapsibleHeader
+          open={detailsOpen}
+          onToggle={() => setDetailsOpen(o => !o)}
+        />
+        {detailsOpen && (
           <DetailGrid>
             <DetailField label="Position type">
               {opp.position_type ? labelFor(POSITION_TYPES, opp.position_type) : <Empty />}
@@ -155,6 +167,24 @@ export default function Opportunity() {
                 : <Empty />}
             </DetailField>
           </DetailGrid>
+        )}
+        <div className="mb-10" />
+
+        {/* 2. Provider Availability — moved UP to sit directly under
+              Details. INTERIM section ordering: the finished section
+              leads, with the still-unfinished sections (Rate structure,
+              GP modeler, Activity) cascaded below in their prior
+              relative order. Final page order is a polish-phase
+              decision. See DESIGN-NOTES. Same B box convention as the
+              Provider-page boxed sections. */}
+        <SectionHeader text="Provider Availability" />
+        <div className="bg-surface-well border border-accent rounded p-6 mb-10 space-y-4
+                        relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
+                        after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+          <RequirementsReadout items={opp.required_items} />
+          <div className="border-t border-border/40 pt-4">
+            <SuggestedProviders opportunity={opp} />
+          </div>
         </div>
 
         <SectionHeader text="Rate structure" />
@@ -225,14 +255,6 @@ export default function Opportunity() {
           onDelete={handleDeleteActivity}
         />
         <div className="mb-10" />
-
-        <SectionHeader text="Provider Availability" />
-        <div className="bg-surface border border-border rounded p-6 mb-10 space-y-4">
-          <RequirementsReadout items={opp.required_items} />
-          <div className="border-t border-border/40 pt-4">
-            <SuggestedProviders opportunity={opp} />
-          </div>
-        </div>
 
         <SectionHeader text="Tasks" />
         <TasksSection

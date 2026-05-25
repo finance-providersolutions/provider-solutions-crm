@@ -96,8 +96,20 @@ export default function CredentialingSection({ providerId }) {
   const credSummary = summarize(credentials.data, CREDENTIAL_FIELDS);
   const privSummary = summarize(privileges.data,  PRIVILEGE_FIELDS, PRIVILEGE_TERMINAL_STATUSES);
 
+  // Two-level box convention:
+  //   • Level 1 — section container at bg-surface-well (#061626, the
+  //     dark "well" shade, sitting BELOW the page bg in luminance) with
+  //     a full-saturation teal border carrying the section-edge signal.
+  //     Holds the always-visible summary AND the collapsible record body.
+  //   • Level 2 — individual license/credential/privilege record cards
+  //     at bg-surface (#122540, lighter than the well), reading as
+  //     raised plates above the recessed container.
+  // Bottom accent-to-transparent gradient rule preserved as the section-
+  // identity treatment shared across the app's presented-data cards.
   return (
-    <>
+    <div className="bg-surface-well border border-accent rounded p-6 mb-10
+                    relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
+                    after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
       <div className="mb-4 grid grid-cols-[auto_auto] gap-x-2 gap-y-1 justify-center font-mono text-[11px] uppercase tracking-[0.12em]">
         {loading && !error ? (
           <div className="col-span-2 text-center text-text-dim">Loading…</div>
@@ -124,7 +136,7 @@ export default function CredentialingSection({ providerId }) {
           <FacilityPrivilegesSection providerId={providerId} />
         </div>
       </CollapsibleSection>
-    </>
+    </div>
   );
 }
 

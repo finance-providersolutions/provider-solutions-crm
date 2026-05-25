@@ -41,7 +41,7 @@ export default function HospitalOpportunityList({ organizationId }) {
   }
 
   return (
-    <ul className="divide-y divide-border/40">
+    <ul className="flex flex-col gap-2">
       {rows.map(opp => <OpportunityRow key={opp.id} opp={opp} />)}
     </ul>
   );
@@ -58,7 +58,7 @@ function OpportunityRow({ opp }) {
     <li>
       <Link
         to={`/opportunities/${opp.id}`}
-        className="block py-3 pl-1 pr-2 rounded hover:bg-surface2/40 transition-colors"
+        className="block bg-surface border border-border rounded p-3 hover:bg-surface2 transition-colors"
       >
         <div className="flex items-baseline justify-between gap-3">
           <div className="text-accent text-sm font-medium truncate">

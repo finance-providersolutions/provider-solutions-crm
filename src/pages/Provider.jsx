@@ -13,6 +13,7 @@ import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
 import CredentialingSection from '@/components/credentialing/CredentialingSection';
 import OnboardingSection from '@/components/credentialing/OnboardingSection';
+import ProviderPlacementsSection from '@/components/credentialing/ProviderPlacementsSection';
 import { DetailsCollapsibleHeader } from '@/components/ui/details-collapsible-header';
 import { useProvider, useProviders } from '@/hooks/useProviders';
 import { useActivities } from '@/hooks/useActivities';
@@ -303,30 +304,43 @@ export default function Provider() {
           )}
 
           {/* 2. Onboarding — moved above Credentialing to mirror the
-                real lifecycle (onboard, then credential). Status line
-                ("N of 3 complete") + thin progress bar live OUTSIDE
-                the collapsible so the glance state is always visible;
-                the checklist itself is hidden behind the shared
-                CollapsibleSection by default. Derived license/DEA rows
-                used to live here under a "From credentialing"
-                sub-group; that information now lives in the
-                Credentialing status summary below. */}
+                real lifecycle (onboard, then credential). Two-level
+                box convention: bg-surface-well container with a
+                full-saturation teal border; status line + checklist
+                live INSIDE the container, with the bg-surface records
+                stack raised above the container fill. */}
           <SectionHeader text="Onboarding" />
-          <OnboardingSection providerId={provider.id} />
-          <div className="mb-10" />
+          <div className="bg-surface-well border border-accent rounded p-6 mb-10
+                          relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
+                          after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+            <OnboardingSection providerId={provider.id} />
+          </div>
 
           {/* 3. Credentialing — three subsections (licenses / core /
                 privileges) sit behind a single CollapsibleSection. A
                 3-line worst-status-per-group summary above the
-                collapsed line is always visible. Subsection components
-                themselves are unchanged — same rows, same kebab, same
-                form dialogs — just hidden behind the collapsed line
-                by default. */}
+                collapsed line is always visible. Same two-level box
+                treatment as Onboarding; wrapper baked into the
+                section component. */}
           <SectionHeader text="Credentialing" />
           <CredentialingSection providerId={provider.id} />
-          <div className="mb-10" />
 
-          {/* 3. Activity — Provider-local pattern: "+ New activity"
+          {/* 4. Hospital Standing — cross-grain provider lifecycle
+                standing. Hospital-keyed outer-join of placements
+                (opportunity-grain) and facility_privileges (hospital-
+                grain), with the load-bearing selected-without-
+                privilege gap surfaced as a warning-tone flag. Same B
+                box convention as Onboarding and Credentialing above.
+                Grouped with the other provider-standing sections
+                (Onboarding, Credentialing) above the Activity/Tasks
+                workflow sections below. The section component file
+                stays named ProviderPlacementsSection — the underlying
+                data is still placements + privileges. Only the user-
+                facing label changes. */}
+          <SectionHeader text="Hospital Standing" />
+          <ProviderPlacementsSection providerId={provider.id} />
+
+          {/* 5. Activity — Provider-local pattern: "+ New activity"
                 button toggles LogActivityForm visibility. Closing the
                 form on successful submit keeps the surface compact. */}
           <SectionHeader text="Activity" />
@@ -359,7 +373,7 @@ export default function Provider() {
           />
           <div className="mb-10" />
 
-          {/* 4. Tasks */}
+          {/* 6. Tasks */}
           <SectionHeader text="Tasks" />
           <TasksSection
             parentColumn="provider_id"
@@ -368,19 +382,7 @@ export default function Provider() {
           />
           <div className="mb-10" />
 
-          {/* 5. Placements (placeholder until Phase 4 flow ships) — no-card
-                empty state matching Credentialing/Activity/Tasks. */}
-          <SectionHeader text="Placements" />
-          <div className="px-6 py-6 text-center mb-10">
-            <div className="font-mono text-[11px] uppercase tracking-[0.1em] text-text-muted">
-              No placements yet
-            </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-muted mt-1">
-              Phase 4 — placement creation flow
-            </div>
-          </div>
-
-          {/* 6. Delete — last */}
+          {/* 7. Delete — last */}
           <div className="border-t border-border/50 pt-6">
             <Button
               ref={deleteProviderTriggerRef}

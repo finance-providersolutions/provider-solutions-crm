@@ -9,6 +9,16 @@
 // surprises when the user is in one timezone and the date column
 // was entered from another.
 
+// 90-day "expiring soon" predicate for facility-privilege rows.
+// Shared across SuggestedProviders, HospitalPrivilegeRoster, and
+// ProviderPlacementsSection — the third consumer triggered the lift
+// out of two near-identical inline copies. Returns true when the
+// privilege has a future expiration_date within 90 days inclusive.
+export function privilegeIsExpiringSoon(row) {
+  const d = daysUntil(row?.expiration_date);
+  return d != null && d >= 0 && d <= 90;
+}
+
 // Whole calendar days from today to the given YYYY-MM-DD date.
 // Negative = already expired; 0 = today; positive = future.
 // Returns null when input is missing.

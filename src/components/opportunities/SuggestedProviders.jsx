@@ -12,7 +12,7 @@ import { usePlacements } from '@/hooks/usePlacements';
 import { deriveShiftReadiness } from '@/components/credentialing/readiness';
 import {
   deriveCredentialingStatus,
-  daysUntil,
+  privilegeIsExpiringSoon,
   PRIVILEGE_TERMINAL_STATUSES,
 } from '@/components/credentialing/expiration';
 import { fmtName } from '@/utils/formatters';
@@ -71,10 +71,16 @@ import { cn } from '@/lib/utils';
 // Cardinality is enforced in the placements hook (at-most-one
 // non-cancelled row per pair), not in the schema.
 
+// Within the Selected + Applied tier, selected sorts ABOVE applied —
+// selection is the stronger commit (a recruiter-authored placement)
+// than an in-flight privilege application that hasn't yet resulted
+// in committal. Lifecycle progression still has applied AFTER selected
+// across the full stage chain, but for the sort key inside the
+// combined tier we want selected on top.
 const LIFECYCLE_RANK = {
   privileged:   0,
-  applied:      1,
-  selected:     2,
+  selected:     1,
+  applied:      2,
   eligible:     3,
 };
 
@@ -149,11 +155,6 @@ function derivePrivilegeStatus(row) {
     storedStatus:    row?.status ?? null,
     terminalStatuses: PRIVILEGE_TERMINAL_STATUSES,
   });
-}
-
-function privilegeIsExpiringSoon(row) {
-  const d = daysUntil(row?.expiration_date);
-  return d != null && d >= 0 && d <= 90;
 }
 
 // Lifecycle stage derivation for ONE provider against ONE

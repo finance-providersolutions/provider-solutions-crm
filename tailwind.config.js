@@ -10,6 +10,7 @@ export default {
         grid:            'var(--grid)',
         surface:         'var(--surface)',
         surface2:        'var(--surface2)',
+        'surface-well':  'var(--surface-well)',
         border:          'var(--border)',
         accent:          'var(--accent)',
         'accent-foreground': 'var(--bg)',  /* shadcn primitives reference text-accent-foreground */

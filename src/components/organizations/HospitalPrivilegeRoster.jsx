@@ -7,7 +7,7 @@ import { useProviders } from '@/hooks/useProviders';
 import { useAllCredentialing } from '@/hooks/useMatching';
 import {
   deriveCredentialingStatus,
-  daysUntil,
+  privilegeIsExpiringSoon,
   PRIVILEGE_TERMINAL_STATUSES,
 } from '@/components/credentialing/expiration';
 import { fmtName } from '@/utils/formatters';
@@ -37,11 +37,6 @@ function derivePrivilegeStatus(row) {
     storedStatus:    row?.status ?? null,
     terminalStatuses: PRIVILEGE_TERMINAL_STATUSES,
   });
-}
-
-function privilegeIsExpiringSoon(row) {
-  const d = daysUntil(row?.expiration_date);
-  return d != null && d >= 0 && d <= 90;
 }
 
 export default function HospitalPrivilegeRoster({ organizationId }) {
@@ -216,7 +211,7 @@ export default function HospitalPrivilegeRoster({ organizationId }) {
 
 function RosterList({ items, kind }) {
   return (
-    <ul className="divide-y divide-border/40">
+    <ul className="flex flex-col gap-2">
       {items.map(({ provider, privilege, expiringSoon }) => (
         <RosterRow
           key={privilege.id}
@@ -246,7 +241,7 @@ function RosterRow({ provider, privilege, kind, expiringSoon }) {
     <li>
       <Link
         to={`/providers/${provider.id}`}
-        className="block py-3 pl-1 pr-2 rounded hover:bg-surface2/40 transition-colors"
+        className="block bg-surface border border-border rounded p-3 hover:bg-surface2 transition-colors"
       >
         <div className="flex items-start gap-3">
           <Thumb

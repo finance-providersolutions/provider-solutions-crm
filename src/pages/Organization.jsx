@@ -191,20 +191,23 @@ export default function Organization() {
             excludes Selected — that lives on the opportunity page) and
             an opportunities-at-this-hospital list. Both sit between
             Details and Contacts; both are hidden entirely for non-
-            hospital org types. Each sits in the standard surface card
-            so they read as the same kind of presented section as
-            Details, Contacts, and the opportunity-page sections. */}
+            hospital org types. Both use the two-level B box convention
+            — bg-surface-well Level-1 container with the teal border +
+            gradient rule, and bg-surface Level-2 record cards for the
+            individual privilege and opportunity rows inside (see each
+            sub-component). Matches the Provider-page Onboarding /
+            Credentialing / Hospital Standing treatment. */}
         {org.type === 'hospital' && (
           <>
             <SectionHeader text="Privilege roster" />
-            <div className="bg-surface border border-border rounded p-6 mb-10
+            <div className="bg-surface-well border border-accent rounded p-6 mb-10
                             relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
                             after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
               <HospitalPrivilegeRoster organizationId={org.id} />
             </div>
 
             <SectionHeader text="Opportunities" />
-            <div className="bg-surface border border-border rounded p-6 mb-10
+            <div className="bg-surface-well border border-accent rounded p-6 mb-10
                             relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
                             after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
               <HospitalOpportunityList organizationId={org.id} />

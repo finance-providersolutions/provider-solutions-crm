@@ -11,6 +11,12 @@
   --grid:         #0d2040;
   --surface:      #122540;
   --surface2:     #1a3050;
+  /* Section-container "well" shade for the two-level box convention.
+     Sits BELOW the page bg in luminance so two-level-boxed sections
+     read as recessed regions with raised bg-surface record cards above
+     them. The teal border (border-accent) carries the section-edge
+     signal — fill-vs-page contrast is intentionally low here. */
+  --surface-well: #061626;
   --border:       #7ee8e860;
   --accent:       #7ee8e8;
   --accent-dim:   #7ee8e818;
@@ -55,6 +61,14 @@
   --grid:         #dceaf4;
   --surface:      #ffffff;
   --surface2:     #e8f2f9;
+  /* Light-mode counterpart to dark-mode --surface-well. In dark mode
+     the well is darker than the page; in light mode the analog is a
+     more-saturated tinted blue clearly darker than both the page and
+     surface2 so that white (--surface) record cards still read as
+     raised plates above the container. Provisional value — light-mode
+     theme is wired but has not been heavily exercised; revisit during
+     the light-mode tuning pass tracked in the suite roadmap. */
+  --surface-well: #cfdeec;
   --border:       #7ee8e840;
   --accent:       #0e8080;
   --accent-dim:   #0e808014;
