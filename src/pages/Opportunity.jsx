@@ -8,6 +8,7 @@ import SectionHeader from '@/components/brand/SectionHeader';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import GPModeler from '@/components/opportunities/GPModeler';
+import SuggestedProviders from '@/components/opportunities/SuggestedProviders';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
@@ -228,13 +229,8 @@ export default function Opportunity() {
         <SectionHeader text="Suggested providers" />
         <div className="bg-surface border border-border rounded p-6 mb-10 space-y-4">
           <RequirementsReadout items={opp.required_items} />
-          <div className="border-t border-border/40 pt-4 text-center">
-            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">
-              No suggestions yet
-            </div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mt-1.5">
-              Phase 4 — matching by specialty / state / credentials
-            </div>
+          <div className="border-t border-border/40 pt-4">
+            <SuggestedProviders opportunity={opp} />
           </div>
         </div>
 

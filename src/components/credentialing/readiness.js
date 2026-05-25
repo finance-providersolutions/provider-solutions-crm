@@ -19,6 +19,11 @@
 // overall:'indeterminate' / REQUIREMENTS_UNDEFINED before any
 // dimension runs — no requirements means "not honestly assessable",
 // not "ready by default".
+//
+// Facility dimension status values: 'ready' | 'expiring' | 'applied'
+// | 'blocked'. The 'applied' value (Phase 4b) flags an in-flight
+// privilege application at the opportunity's hospital — its own
+// flavor between ready and blocked, NEVER folded into `overall`.
 
 import {
   deriveCredentialingStatus,
@@ -281,6 +286,7 @@ export function deriveShiftReadiness({
 
     const terminal = derived.find(d => d.status === 'denied' || d.status === 'withdrawn');
     const active   = derived.find(d => d.status === 'active');
+    const applied  = derived.find(d => d.status === 'applied');
     const expired  = derived.find(d => d.status === 'expired');
 
     if (terminal) {
@@ -298,6 +304,25 @@ export function deriveShiftReadiness({
       reasons.push(r);
     } else if (active) {
       privilegesDim.status = isExpiringSoon(active.row.expiration_date) ? 'expiring' : 'ready';
+    } else if (applied) {
+      // In-flight privilege application at the hospital — the
+      // application_date is set but the hospital has not granted
+      // yet. Soft severity: forward progress, not a failure. Its
+      // own facility-dimension status flavor — NOT ready, NOT
+      // blocked. Sits ahead of the expired branch so a fresh re-
+      // application reads as in-progress rather than as a stale
+      // expiration. Like every facility state, never folds into the
+      // portable `overall` roll-up.
+      privilegesDim.status = 'applied';
+      const r = {
+        tier: 'facility',
+        dimension: 'privileges',
+        code: 'PRIVILEGE_APPLIED',
+        severity: 'soft',
+        detail: 'Facility privilege application is in progress at this hospital.',
+      };
+      privilegesDim.reasons.push(r);
+      reasons.push(r);
     } else if (expired) {
       privilegesDim.status = 'blocked';
       const r = {
@@ -310,10 +335,10 @@ export function deriveShiftReadiness({
       privilegesDim.reasons.push(r);
       reasons.push(r);
     } else {
-      // No row at all, or only pending/applied rows. Soft severity:
-      // the normal next step for an unplaced candidate, not a
-      // failure. Facility never rolls into overall, so this stays
-      // informational at the facility tier.
+      // No row at all, or only pending rows (no application_date
+      // yet). Soft severity: the normal next step for an unplaced
+      // candidate, not a failure. Facility never rolls into overall,
+      // so this stays informational at the facility tier.
       privilegesDim.status = 'blocked';
       const r = {
         tier: 'facility',
@@ -322,7 +347,7 @@ export function deriveShiftReadiness({
         severity: 'soft',
         detail: rows.length === 0
           ? 'No facility privilege record at this hospital.'
-          : 'Facility privilege is pending or not yet granted at this hospital.',
+          : 'Facility privilege is pending at this hospital.',
       };
       privilegesDim.reasons.push(r);
       reasons.push(r);
