@@ -4,6 +4,8 @@ import { UserPlus, UserMinus } from 'lucide-react';
 import { toast } from 'sonner';
 import Thumb from '@/components/uploads/Thumb';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import { TierKPICard } from '@/components/brand/KPICard';
 import { useProviders } from '@/hooks/useProviders';
 import { useAllCredentialing } from '@/hooks/useMatching';
 import { usePlacements } from '@/hooks/usePlacements';
@@ -85,15 +87,20 @@ const LIFECYCLE_LABEL = {
 
 // Tones reuse the existing credentialing palette so badges read in
 // the same visual grammar as CredentialingSection's summary lines.
-//   privileged → income (granted)
-//   applied    → warning amber (in progress)
-//   selected   → accent teal (recruiter chose)
-//   eligible   → income (ready) or warning (expiring soon)
+//   privileged → income green   (granted, the top-of-stack achievement)
+//   applied    → warning amber  (in progress)
+//   selected   → accent teal    (recruiter chose; also the section's
+//                                identity colour — names, borders)
+//   eligible   → text (white)   (qualified, in the pool, no special
+//                                status — deliberately neutral so it
+//                                doesn't read as Privileged-green or
+//                                Selected-teal). The expiring override
+//                                still flips this to warning amber.
 const LIFECYCLE_TONE = {
   privileged: 'text-income',
   applied:    'text-warning',
   selected:   'text-accent',
-  eligible:   'text-income',
+  eligible:   'text-text',
 };
 
 const VERDICT_RANK = { ready: 0, expiring: 1, indeterminate: 2, blocked: 3 };
@@ -203,6 +210,24 @@ export default function SuggestedProviders({ opportunity }) {
   const [actingProviderId, setActingProviderId] = useState(null);
   const unselectTriggerRef = useRef(null);
 
+  // Parent-owned open + focus state for the tier sections. The model
+  // distinguishes two modes:
+  //   • Card-driven (focused): exactly one section open, and the
+  //     corresponding KPI card lights up with the accent treatment.
+  //     Set by clicking a card OR by the default-open-on-load rule
+  //     (highest-ranked non-empty tier).
+  //   • Chevron-driven (multi-open or empty): any combination of
+  //     sections open via individual chevrons, with NO card showing
+  //     focus. Card focus is deliberately cleared whenever a chevron
+  //     toggle or Expand All fires, because the "this is the focused
+  //     tier" claim no longer holds when multiple sections are open.
+  //
+  // State is null until the user interacts — that lets the default
+  // (which depends on tier sizes, computed after early returns) flow
+  // through cleanly. Handlers resolve `current ?? defaultState`
+  // before mutating, so they always start from the live values.
+  const [tierOverride, setTierOverride] = useState(null);
+
   async function handleSelect(provider) {
     setActingProviderId(provider.id);
     try {
@@ -297,20 +322,143 @@ export default function SuggestedProviders({ opportunity }) {
 
   const sorted = sortByLifecycle(evaluated);
 
+  // Tier bucketing — presentation regroup of the already-derived
+  // lifecycle. The four-tier UX is:
+  //   • Privileged & Ready  — lifecycle.stage === 'privileged'
+  //   • Selected + Applied  — 'selected' or 'applied'
+  //   • Suggested/Eligible  — 'eligible'
+  //   • Blocked             — null lifecycle (verdict-fallback row)
+  // Counts always render (zero reads as "zero", not "missing");
+  // empty tiers do NOT render their CollapsibleSection.
+  const tiers = {
+    privileged: [],
+    selApp:     [],
+    eligible:   [],
+    blocked:    [],
+  };
+  for (const item of sorted) {
+    const stage = item.lifecycle?.stage ?? null;
+    if (stage === 'privileged')                            tiers.privileged.push(item);
+    else if (stage === 'selected' || stage === 'applied')  tiers.selApp.push(item);
+    else if (stage === 'eligible')                         tiers.eligible.push(item);
+    else                                                   tiers.blocked.push(item);
+  }
+  const counts = {
+    privileged: tiers.privileged.length,
+    selApp:     tiers.selApp.length,
+    eligible:   tiers.eligible.length,
+    blocked:    tiers.blocked.length,
+  };
+
+  const renderRow = (item) => (
+    <ProviderRow
+      key={item.provider.id}
+      item={item}
+      acting={actingProviderId === item.provider.id}
+      onSelect={() => handleSelect(item.provider)}
+      onUnselect={(triggerEl) => requestUnselect(item.provider, item.placement, triggerEl)}
+    />
+  );
+
+  // Tier metadata in display order — card label, tone for the
+  // KPI-card value, section heading inside its CollapsibleSection.
+  // Note: the Selected+Applied tier card reads "Selected" (the
+  // primary lifecycle the recruiter authored) while its section
+  // heading keeps "Selected + Applied" since the Applied rows fold
+  // into the same group.
+  const tierDefs = [
+    { key: 'privileged', card: 'Ready',    section: 'Privileged & Ready',  color: 'green'   },
+    { key: 'selApp',     card: 'Selected', section: 'Selected + Applied',  color: 'default' },
+    { key: 'eligible',   card: 'Eligible', section: 'Suggested / Eligible', color: 'white'  },
+    { key: 'blocked',    card: 'Blocked',  section: 'Blocked',              color: 'red'    },
+  ];
+
+  // Default-open rule: the highest-ranked tier that has members.
+  // tierDefs order is the rank order. Card focus matches.
+  const defaultTierKey = tierDefs.find(t => tiers[t.key].length > 0)?.key ?? null;
+  const defaultState = {
+    open:    defaultTierKey ? new Set([defaultTierKey]) : new Set(),
+    focused: defaultTierKey,
+  };
+  const { open: openTiers, focused: focusedCard } = tierOverride ?? defaultState;
+
+  function handleCardClick(tierK, isEmpty) {
+    if (isEmpty) return;
+    setTierOverride(prev => {
+      const current = prev ?? defaultState;
+      if (current.focused === tierK) {
+        return { open: new Set(), focused: null };
+      }
+      return { open: new Set([tierK]), focused: tierK };
+    });
+  }
+
+  function handleTierToggle(tierK, nextOpen) {
+    setTierOverride(prev => {
+      const current = prev ?? defaultState;
+      const nextOpenSet = new Set(current.open);
+      if (nextOpen) nextOpenSet.add(tierK);
+      else nextOpenSet.delete(tierK);
+      // Chevron clears focus — multi-open via chevrons is the
+      // non-card-driven mode, so no card lights up.
+      return { open: nextOpenSet, focused: null };
+    });
+  }
+
+  function handleExpandAll() {
+    const allOpen = new Set(tierDefs.filter(t => tiers[t.key].length > 0).map(t => t.key));
+    setTierOverride({ open: allOpen, focused: null });
+  }
+
+  const nonEmptyCount = tierDefs.reduce((n, t) => n + (tiers[t.key].length > 0 ? 1 : 0), 0);
+
   return (
     <div>
-      <RowList
-        items={sorted}
-        renderRow={(item) => (
-          <ProviderRow
-            key={item.provider.id}
-            item={item}
-            acting={actingProviderId === item.provider.id}
-            onSelect={() => handleSelect(item.provider)}
-            onUnselect={(triggerEl) => requestUnselect(item.provider, item.placement, triggerEl)}
+      {/* Expand All — muted text-only affordance above the cards.
+          Hidden when there's nothing meaningful to expand (zero or
+          one non-empty tier) and when everything is already open. */}
+      {nonEmptyCount > 1 && openTiers.size < nonEmptyCount && (
+        <div className="flex justify-center mb-3">
+          <button
+            type="button"
+            onClick={handleExpandAll}
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted hover:text-accent transition-colors"
+          >
+            Expand all
+          </button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-4 gap-2">
+        {tierDefs.map(t => (
+          <TierKPICard
+            key={t.key}
+            label={t.card}
+            value={counts[t.key]}
+            color={t.color}
+            focused={focusedCard === t.key && tiers[t.key].length > 0}
+            disabled={tiers[t.key].length === 0}
+            onClick={() => handleCardClick(t.key, tiers[t.key].length === 0)}
           />
-        )}
-      />
+        ))}
+      </div>
+
+      <div className="mt-5 space-y-5">
+        {tierDefs.map(t => {
+          if (tiers[t.key].length === 0) return null;
+          return (
+            <CollapsibleSection
+              key={t.key}
+              label={t.section}
+              open={openTiers.has(t.key)}
+              onOpenChange={(next) => handleTierToggle(t.key, next)}
+            >
+              <RowList items={tiers[t.key]} renderRow={renderRow} muted={t.key === 'blocked'} />
+            </CollapsibleSection>
+          );
+        })}
+      </div>
+
       <ConfirmDeleteDialog
         open={Boolean(pendingUnselect)}
         onOpenChange={(open) => { if (!open) setPendingUnselect(null); }}
@@ -369,11 +517,29 @@ function ProviderRow({ item, acting, onSelect, onUnselect }) {
     tone  = VERDICT_TONE[verdict.overall] ?? 'text-text-dim';
   }
 
-  const meta = [
+  // Desktop meta — the full position·specialty·state line under the
+  // name. Mobile drops position+specialty (they're constant across
+  // this filtered list — every row matches the opportunity's spec
+  // and position type, so repeating them on every row is noise) and
+  // shows only home state, alongside the dropped-down status on the
+  // lower line. Breakpoint matches the suite's responsive card
+  // pattern (md, 768px).
+  const desktopMeta = [
     provider.position_type ? labelFor(POSITION_TYPES, provider.position_type) : null,
     provider.specialty ? specialtyAbbrFor(provider.specialty) : null,
     provider.home_state || null,
   ].filter(Boolean).join(' · ');
+
+  const homeState = provider.home_state || '';
+
+  const tonedLabel = (
+    <div className={cn(
+      'font-mono text-[10px] uppercase tracking-[0.12em] flex-shrink-0',
+      tone,
+    )}>
+      {label}
+    </div>
+  );
 
   return (
     <li className={cn(
@@ -399,22 +565,42 @@ function ProviderRow({ item, acting, onSelect, onUnselect }) {
             size="md"
           />
           <div className="flex-1 min-w-0">
-            <div className="flex items-baseline justify-between gap-3">
+            {/* MOBILE layout (below md): name claims its full row;
+                the lower line carries home state on the left and the
+                status label dropped down to align horizontally with
+                where it sat before — right edge of the meta column,
+                roughly the lower half of the action button's vertical
+                run. */}
+            <div className="md:hidden">
               <div className="text-accent text-sm font-medium truncate">
                 {fmtName(provider)}
               </div>
-              <div className={cn(
-                'font-mono text-[10px] uppercase tracking-[0.12em] flex-shrink-0',
-                tone,
-              )}>
-                {label}
+              <div className="flex items-baseline justify-between gap-3 mt-1">
+                <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-dim">
+                  {homeState}
+                </div>
+                {tonedLabel}
               </div>
             </div>
-            {meta && (
-              <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-dim mt-0.5">
-                {meta}
+
+            {/* DESKTOP layout (md+): unchanged — status sits inline
+                with the name on row 1, full position·spec·state meta
+                on row 2. */}
+            <div className="hidden md:block">
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="text-accent text-sm font-medium truncate">
+                  {fmtName(provider)}
+                </div>
+                {tonedLabel}
               </div>
-            )}
+              {desktopMeta && (
+                <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-dim mt-0.5">
+                  {desktopMeta}
+                </div>
+              )}
+            </div>
+
+            {/* Warning / reason lines below either layout. */}
             {reason && !lifecycle && (
               <div className={cn('text-xs mt-1 leading-snug', tone)}>
                 {reason.detail}

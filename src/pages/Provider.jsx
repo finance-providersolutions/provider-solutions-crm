@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronDown, Mail, Pencil, Phone, Plus, Trash2 } from 'lucide-react';
+import { Mail, Pencil, Phone, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,7 @@ import ActivityFeed from '@/components/activities/ActivityFeed';
 import TasksSection from '@/components/tasks/TasksSection';
 import CredentialingSection from '@/components/credentialing/CredentialingSection';
 import OnboardingSection from '@/components/credentialing/OnboardingSection';
+import { DetailsCollapsibleHeader } from '@/components/ui/details-collapsible-header';
 import { useProvider, useProviders } from '@/hooks/useProviders';
 import { useActivities } from '@/hooks/useActivities';
 import { useChromeBottom } from '@/hooks/useChromeBottom';
@@ -441,36 +442,6 @@ function DetailField({ label, full = false, children }) {
       <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">{label}</div>
       <div className="text-text text-sm leading-snug">{children}</div>
     </div>
-  );
-}
-
-// One-off collapsible header for the Details section ONLY. Visually
-// echoes the suite-wide SectionHeader (mono cap accent text, gradient
-// rule) but is a single button with a chevron that rotates between
-// open (-90deg → pointing right when closed; 0deg → pointing down
-// when open) so the collapsibility is obvious without a separate
-// "Show / Hide" affordance. NOT a generic accordion primitive —
-// every other section on the page stays a plain SectionHeader.
-function DetailsCollapsibleHeader({ open, onToggle }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      className="w-full mt-0 mb-6 flex items-center gap-3 text-left group focus-visible:outline-none"
-    >
-      <ChevronDown
-        className={cn(
-          'w-4 h-4 text-accent opacity-75 transition-transform flex-shrink-0',
-          !open && '-rotate-90',
-        )}
-        strokeWidth={1.5}
-      />
-      <span className="font-mono text-[13px] font-bold uppercase tracking-[0.22em] text-accent opacity-90 group-hover:opacity-100 transition-opacity flex-shrink-0">
-        Details
-      </span>
-      <div className="flex-1 h-px opacity-45 bg-gradient-to-r from-accent to-transparent" />
-    </button>
   );
 }
 

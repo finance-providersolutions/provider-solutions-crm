@@ -226,7 +226,7 @@ export default function Opportunity() {
         />
         <div className="mb-10" />
 
-        <SectionHeader text="Suggested providers" />
+        <SectionHeader text="Provider Availability" />
         <div className="bg-surface border border-border rounded p-6 mb-10 space-y-4">
           <RequirementsReadout items={opp.required_items} />
           <div className="border-t border-border/40 pt-4">

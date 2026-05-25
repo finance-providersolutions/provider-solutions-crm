@@ -8,6 +8,72 @@ const VALUE_COLOR = {
   white:   'text-text',
 };
 
+// Compact tier-count sibling of KPICard. Designed for 4-across at
+// 380px wide (the opportunity Provider Availability tiers) and 2- or
+// 3-across (the org Privilege Roster tiers). Same visual grammar as
+// KPICard — bg + border + bottom gradient rule, mono cap label on
+// top, large value below, centered — but quarter the footprint (no
+// sub slot, tighter padding, smaller fonts) and accepts onClick + a
+// `focused` state for accordion-driven section reveal.
+//
+// `focused` indicates this card drove the current open state — set
+// either by an explicit card click or as the default-open tier on
+// first load. It earns a strong accent treatment (accent border + a
+// faint accent-dim fill + brightened label) so the user can tell
+// "this is the tier the page is focused on" at a glance. A section
+// opened only via its CollapsibleSection chevron does NOT light its
+// card — multi-open via chevrons is a different mode and clears card
+// focus deliberately.
+//
+// Uses bg-surface2 (or bg-accent-dim when focused) so the tier cards
+// sit one tonal step above their parent (which is typically the
+// bg-surface section card) and read as nested chips.
+export function TierKPICard({
+  label,
+  value,
+  color = 'default',
+  focused = false,
+  disabled = false,
+  onClick,
+}) {
+  const valueColor = (disabled
+    ? 'text-text-muted'
+    : (VALUE_COLOR[color] ?? VALUE_COLOR.default));
+  const clickable = Boolean(onClick) && !disabled;
+
+  return (
+    <button
+      type="button"
+      onClick={clickable ? onClick : undefined}
+      disabled={!clickable}
+      aria-pressed={clickable ? focused : undefined}
+      className={cn(
+        'relative border rounded px-1.5 py-2 transition-colors',
+        'flex flex-col justify-center items-center text-center',
+        'after:content-[""] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-30',
+        focused
+          ? 'bg-accent-dim border-accent shadow-[inset_0_0_0_1px_rgba(126,232,232,0.35)]'
+          : 'bg-surface2 border-border/60',
+        clickable && !focused && 'hover:border-accent/60 cursor-pointer',
+        !clickable && 'cursor-default',
+      )}
+    >
+      <div className={cn(
+        'font-mono text-[9px] font-bold uppercase tracking-[0.12em] leading-tight',
+        focused ? 'text-accent' : 'text-text-dim',
+      )}>
+        {label}
+      </div>
+      <div className={cn(
+        'font-sans font-bold tracking-[-0.02em] leading-none mt-1 text-lg tabular-nums',
+        valueColor,
+      )}>
+        {value ?? '—'}
+      </div>
+    </button>
+  );
+}
+
 export default function KPICard({
   label,
   value,

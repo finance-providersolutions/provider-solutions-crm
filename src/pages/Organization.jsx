@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
 import OrganizationFormDialog from '@/components/organizations/OrganizationFormDialog';
+import HospitalPrivilegeRoster from '@/components/organizations/HospitalPrivilegeRoster';
+import HospitalOpportunityList from '@/components/organizations/HospitalOpportunityList';
 import ContactFormDialog from '@/components/contacts/ContactFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
+import { DetailsCollapsibleHeader } from '@/components/ui/details-collapsible-header';
 import { CardKebab } from '@/components/ui/card-kebab';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
@@ -41,6 +44,9 @@ export default function Organization() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingDeleteContact, setPendingDeleteContact] = useState(null);
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
+  // Details collapsed by default — matches the provider-page Details
+  // one-off pattern, same DetailsCollapsibleHeader shape.
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const deleteOrgTriggerRef = useRef(null);
   const contactDeleteTriggerRef = useRef(null);
   const activityDeleteTriggerRef = useRef(null);
@@ -138,10 +144,17 @@ export default function Organization() {
           </Button>
         </div>
 
-        <SectionHeader text="Details" first />
-        <div className="bg-surface border border-border rounded p-6 mb-10
-                        relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
-                        after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+        {/* Details — one-off collapsible matching the Provider-page
+            Details pattern. Same DetailsCollapsibleHeader, same
+            "header + conditional dense grid (no card wrapper)" shape.
+            NOT the shared CollapsibleSection — that's the smaller
+            labeled-sub-group pattern (Onboarding / Credentialing /
+            Provider Availability tiers). */}
+        <DetailsCollapsibleHeader
+          open={detailsOpen}
+          onToggle={() => setDetailsOpen(o => !o)}
+        />
+        {detailsOpen && (
           <DetailGrid>
             <DetailField label="Website">
               {org.website
@@ -171,11 +184,35 @@ export default function Organization() {
                 : <Empty />}
             </DetailField>
           </DetailGrid>
-        </div>
+        )}
+        <div className="mb-10" />
 
-        <div className="flex items-center justify-between mb-3">
-          <SectionHeader text="Contacts" first />
-        </div>
+        {/* Hospital-only sections: privilege roster (hospital-grain,
+            excludes Selected — that lives on the opportunity page) and
+            an opportunities-at-this-hospital list. Both sit between
+            Details and Contacts; both are hidden entirely for non-
+            hospital org types. Each sits in the standard surface card
+            so they read as the same kind of presented section as
+            Details, Contacts, and the opportunity-page sections. */}
+        {org.type === 'hospital' && (
+          <>
+            <SectionHeader text="Privilege roster" />
+            <div className="bg-surface border border-border rounded p-6 mb-10
+                            relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
+                            after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+              <HospitalPrivilegeRoster organizationId={org.id} />
+            </div>
+
+            <SectionHeader text="Opportunities" />
+            <div className="bg-surface border border-border rounded p-6 mb-10
+                            relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
+                            after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+              <HospitalOpportunityList organizationId={org.id} />
+            </div>
+          </>
+        )}
+
+        <SectionHeader text="Contacts" />
         <div className="-mt-3 mb-3 flex justify-end">
           <Button
             onClick={() => { setEditingContact(null); setContactOpen(true); }}
