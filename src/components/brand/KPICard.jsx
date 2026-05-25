@@ -6,6 +6,15 @@ const VALUE_COLOR = {
   red:     'text-danger',
   blue:    'text-gp',
   white:   'text-text',
+  // Added for the CredentialingSection card-accordion variant — per-
+  // group worst-status tone mapping. 'warning' = expiring soon (amber);
+  // 'dim' = pending/withdrawn (de-emphasized informational); 'muted' =
+  // none-on-file (the very-faint state). Pre-existing tier consumers
+  // (Provider Availability / Privilege Roster) use only the original
+  // five keys and are unaffected.
+  warning: 'text-warning',
+  dim:     'text-text-dim',
+  muted:   'text-text-muted',
 };
 
 // Compact tier-count sibling of KPICard. Designed for 4-across at
@@ -36,6 +45,15 @@ const VALUE_COLOR = {
 //     and read as "available, none picked." Previously used
 //     bg-surface2 here, which against the dark well visually inverted
 //     the elevation (unfocused cards popped, focused recessed).
+//
+// Optional `sub` slot — a small nuance line that renders below the
+// value when provided. Added for the CredentialingSection card-
+// accordion variant where each group's status carries information
+// richer than a bare count (e.g. "1 EXPIRED" / "ALL CURRENT" /
+// "NONE ON FILE"). The card grows taller when sub is present. `subColor`
+// picks from the same VALUE_COLOR map (defaults to 'dim'). Existing
+// consumers that pass no sub get the original compact-card behavior
+// unchanged.
 export function TierKPICard({
   label,
   value,
@@ -43,10 +61,13 @@ export function TierKPICard({
   focused = false,
   disabled = false,
   onClick,
+  sub,
+  subColor = 'dim',
 }) {
   const valueColor = (disabled
     ? 'text-text-muted'
     : (VALUE_COLOR[color] ?? VALUE_COLOR.default));
+  const subClass = VALUE_COLOR[subColor] ?? VALUE_COLOR.dim;
   const clickable = Boolean(onClick) && !disabled;
 
   return (
@@ -78,6 +99,21 @@ export function TierKPICard({
       )}>
         {value ?? '—'}
       </div>
+      {/* Optional nuance line under the value. Added for the
+          CredentialingSection card-accordion variant where each group's
+          status is richer than a bare count (e.g. "1 EXPIRED" / "ALL
+          CURRENT" / "NONE ON FILE"). Renders only when `sub` is provided;
+          existing consumers (Provider Availability / Privilege Roster)
+          pass no sub and get the original compact-card behavior
+          unchanged. The card grows taller when sub is present. */}
+      {sub && (
+        <div className={cn(
+          'font-mono text-[9px] font-bold uppercase tracking-[0.1em] leading-tight mt-1',
+          subClass,
+        )}>
+          {sub}
+        </div>
+      )}
     </button>
   );
 }
