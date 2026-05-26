@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/api/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -153,3 +153,53 @@ export function useProviderPlacements(providerId) {
 }
 
 export { SELECTED_LIFECYCLE_STATUSES };
+
+// ── Cross-opportunity aggregate read for the matching-engine Home.
+// Sibling to useAllCredentialing — one query against the placements
+// table with the same non-cancelled status allowlist, then bucket the
+// result by opportunity_id (and by provider_id, for the selected-
+// without-privilege flag computation) so consumers can address all-
+// pairs without an N+1. Read-only.
+//
+// No eager join: Home already pairs this against useOpportunities /
+// useProviders which it loads anyway, so re-joining here would
+// duplicate work.
+export function useAllPlacements() {
+  const [data, setData]       = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const { data: rows, error: err } = await supabase
+      .from('placements')
+      .select('id, provider_id, opportunity_id, status')
+      .in('status', SELECTED_LIFECYCLE_STATUSES);
+    if (err) { setError(err); setLoading(false); return; }
+    setData(rows ?? []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { refetch(); }, [refetch]);
+
+  const byOpportunity = useMemo(() => {
+    const m = new Map();
+    for (const r of data) {
+      if (!m.has(r.opportunity_id)) m.set(r.opportunity_id, []);
+      m.get(r.opportunity_id).push(r);
+    }
+    return m;
+  }, [data]);
+
+  const byProvider = useMemo(() => {
+    const m = new Map();
+    for (const r of data) {
+      if (!m.has(r.provider_id)) m.set(r.provider_id, []);
+      m.get(r.provider_id).push(r);
+    }
+    return m;
+  }, [data]);
+
+  return { data, byOpportunity, byProvider, loading, error, refetch };
+}
