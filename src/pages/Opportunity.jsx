@@ -1,10 +1,11 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
+import Thumb from '@/components/uploads/Thumb';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import GPModeler from '@/components/opportunities/GPModeler';
@@ -15,11 +16,13 @@ import TasksSection from '@/components/tasks/TasksSection';
 import { DetailsCollapsibleHeader } from '@/components/ui/details-collapsible-header';
 import { useOpportunity, useOpportunities } from '@/hooks/useOpportunities';
 import { useActivities } from '@/hooks/useActivities';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import {
   OPPORTUNITY_SETTINGS, OPPORTUNITY_STAGES, POSITION_TYPES,
-  REQUIREMENT_ITEMS, SPECIALTIES, labelFor,
+  REQUIREMENT_ITEMS, SPECIALTIES, labelFor, specialtyAbbrFor,
 } from '@/utils/constants';
 import { fmtCurrency, fmtDate, fmtDateTime } from '@/utils/formatters';
+import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 import { STAGE_BADGE } from './Opportunities';
 
@@ -39,6 +42,27 @@ export default function Opportunity() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const deleteOppTriggerRef = useRef(null);
   const activityDeleteTriggerRef = useRef(null);
+
+  // Header height tracking — drives body paddingTop so content
+  // starts cleanly below the fixed header at every breakpoint.
+  // Mirrors the Provider page pattern (Provider.jsx:73–93). Kept
+  // replicated rather than extracted to a shared shell: the
+  // mechanism is small, and the Provider page is the shipped
+  // reference whose chrome must not regress.
+  const headerRef = useRef(null);
+  const [headerH, setHeaderH] = useState(0);
+  useLayoutEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    setHeaderH(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(() => {
+      setHeaderH(el.getBoundingClientRect().height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [opp]);
+
+  useChromeBottom(58 + headerH);
 
   async function performDelete() {
     if (!opp) return;
@@ -74,52 +98,129 @@ export default function Opportunity() {
   if (error)   return <Centered tone="danger">{error.message}</Centered>;
   if (!opp)    return <Centered>Opportunity not found.</Centered>;
 
+  const titleLine = opp.title || opp.name || '—';
+  const orgName = opp.organization?.name || '';
+  // Location — city, ST. Falls back to the parent org's city/state
+  // when the opportunity has no location override. Renders as its
+  // own row beneath the hospital name.
+  const locationLine = [
+    opp.location_city || opp.organization?.city,
+    opp.location_state || opp.organization?.state,
+  ].filter(Boolean).join(', ');
+  // Triad — position · specialty (abbr) · setting. Sits beneath the
+  // title in the header. Mirrors the Opportunities card row-1
+  // treatment. Source partner intentionally NOT here — it lives in
+  // the Details collapsible.
+  const triadParts = [
+    opp.position_type && labelFor(POSITION_TYPES, opp.position_type),
+    opp.specialty && specialtyAbbrFor(opp.specialty),
+    opp.setting && labelFor(OPPORTUNITY_SETTINGS, opp.setting),
+  ].filter(Boolean);
+
   return (
-    <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
-      <div className="max-w-6xl mx-auto py-8">
+    <>
+      {/* ── Fixed condensed header — mirrors the Provider page pattern
+            (Provider.jsx:136–245). Replicated rather than extracted:
+            the mechanism is ~12 lines and Provider is the shipped
+            reference whose chrome must not regress. Sits below the
+            58px primary PageHeader (z-200) and above body content.
+            Stays visible while Dialogs are open; the shared Dialog
+            primitive anchors below `--ps-chrome-bottom` (set by
+            useChromeBottom above) so dialog tops clear this header. ── */}
+      <div
+        ref={headerRef}
+        className="fixed left-0 right-0 z-[150] bg-surface border-b border-border"
+        style={{ top: 'calc(58px + env(safe-area-inset-top))' }}
+      >
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3 sm:gap-4">
+          {/* Logo — centered against the 4-row text block. With
+              hospital, city, title, triad stacked, items-start would
+              leave the thumb floating up top while the visual mass
+              of the text sits lower; center reads cleaner. */}
+          <Thumb
+            path={opp.organization?.logo_path}
+            bucket="organization-logos"
+            alt={orgName || 'Hospital'}
+            fallback={initialsFor(orgName || '?')}
+            shape="square"
+            className="h-16 w-16 sm:h-20 sm:w-20 text-sm flex-shrink-0"
+          />
+
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5 sm:gap-1">
+            {/* 1. Hospital name — links to org. Subheading treatment
+                unchanged from prior pass. */}
+            {opp.organization && (
+              <Link
+                to={`/organizations/${opp.organization.id}`}
+                className="text-text hover:text-accent transition-colors text-sm truncate"
+              >
+                {orgName}
+              </Link>
+            )}
+
+            {/* 2. City, ST — quiet secondary, directly beneath the
+                hospital. Mono small-caps matching the surrounding
+                secondary text scale. NOT 9px. */}
+            {locationLine && (
+              <div className="font-mono text-[11px] text-text-dim truncate">
+                {locationLine}
+              </div>
+            )}
+
+            {/* 3. Title — accent teal, font-display. Same scaling as
+                the prior pass: text-[15px] sm:text-[28px]. */}
+            <h1 className="font-display text-[15px] sm:text-[28px] text-accent leading-tight truncate">
+              {titleLine}
+            </h1>
+
+            {/* 4. Triad — position · specialty (abbr) · setting. Sits
+                under the title. Card-row-1 mono treatment, tracking-
+                tight. Allowed to wrap if a long specialty pushes it
+                over — header is runtime-measured so a taller header
+                is handled by the chrome-bottom plumbing. */}
+            {triadParts.length > 0 && (
+              <div className="font-mono text-[11px] tracking-tight text-text-dim">
+                {triadParts.join(' · ')}
+              </div>
+            )}
+          </div>
+
+          {/* Right column — Edit on top, stage badge anchored beneath. */}
+          <div className="flex-shrink-0 flex flex-col items-end gap-2">
+            <Button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit"
+              title="Edit"
+              className="h-9 px-2.5 sm:px-3 bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.5} />
+              <span className="hidden sm:inline sm:ml-1.5">Edit</span>
+            </Button>
+            {opp.stage && (
+              <Badge variant="outline" className={cn(
+                'font-mono text-[10px] uppercase tracking-[0.1em]',
+                STAGE_BADGE[opp.stage],
+              )}>
+                {labelFor(OPPORTUNITY_STAGES, opp.stage)}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div
+        className="min-h-full pb-12 px-6"
+        style={{ paddingTop: `calc(58px + ${headerH}px + env(safe-area-inset-top) + 24px)` }}
+      >
+        <div className="max-w-6xl mx-auto">
         <button
           onClick={() => navigate('/opportunities')}
           className="flex items-center gap-1.5 text-text-dim hover:text-accent transition-colors font-mono text-[11px] uppercase tracking-[0.12em] mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> All opportunities
         </button>
-
-        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-          <div>
-            <h1 className="font-display text-4xl text-text leading-tight mb-2">
-              {opp.title || opp.name || '—'}
-            </h1>
-            <div className="flex items-center gap-2 flex-wrap">
-              {opp.organization && (
-                <Link
-                  to={`/organizations/${opp.organization.id}`}
-                  className="text-accent hover:text-accent-bright"
-                >
-                  {opp.organization.name}
-                </Link>
-              )}
-              {opp.source_partner && (
-                <span className="text-text-dim text-sm">
-                  via {opp.source_partner.name}
-                </span>
-              )}
-              {opp.stage && (
-                <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', STAGE_BADGE[opp.stage])}>
-                  {labelFor(OPPORTUNITY_STAGES, opp.stage)}
-                </Badge>
-              )}
-              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                Created {fmtDateTime(opp.created_at)}
-              </span>
-            </div>
-          </div>
-          <Button
-            onClick={() => setEditOpen(true)}
-            className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
-          >
-            <Pencil className="w-4 h-4 mr-1" /> Edit
-          </Button>
-        </div>
 
         {/* 1. Details — renamed from "Overview" to align with every
               other detail page (Provider / Org / Contact / Task), and
@@ -160,6 +261,12 @@ export default function Opportunity() {
             </DetailField>
             <DetailField label="Hours guaranteed">
               {opp.hours_guaranteed ? 'Yes' : 'No'}
+            </DetailField>
+            <DetailField label="Source partner">
+              {opp.source_partner?.name || <Empty />}
+            </DetailField>
+            <DetailField label="Created">
+              {opp.created_at ? fmtDateTime(opp.created_at) : <Empty />}
             </DetailField>
             <DetailField label="Notes" full>
               {opp.notes
@@ -274,6 +381,7 @@ export default function Opportunity() {
             <Trash2 className="w-4 h-4 mr-1" /> Delete opportunity
           </Button>
         </div>
+        </div>
       </div>
 
       <OpportunityFormDialog
@@ -302,7 +410,7 @@ export default function Opportunity() {
         title="Delete this activity entry?"
         onConfirm={performDeleteActivity}
       />
-    </div>
+    </>
   );
 }
 
