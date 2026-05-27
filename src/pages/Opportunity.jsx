@@ -8,6 +8,7 @@ import SectionHeader from '@/components/brand/SectionHeader';
 import Thumb from '@/components/uploads/Thumb';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
 import RateStructureFormDialog from '@/components/opportunities/RateStructureFormDialog';
+import RequirementsFormDialog from '@/components/opportunities/RequirementsFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import GPModeler from '@/components/opportunities/GPModeler';
 import SuggestedProviders from '@/components/opportunities/SuggestedProviders';
@@ -36,6 +37,7 @@ export default function Opportunity() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [rateStructureOpen, setRateStructureOpen] = useState(false);
+  const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
   // Details collapsed by default — matches the Provider and Org Details
@@ -109,6 +111,12 @@ export default function Opportunity() {
   //     sided rate.
   const rateStructureUnset = opp.bill_regular_hourly == null && opp.pay_regular_daily == null;
   const gpGuardOn          = opp.bill_regular_hourly == null || opp.pay_regular_daily == null;
+
+  // Requirements unset = null or empty array. New opps default-write
+  // ['license'] on create (OpportunityFormDialog), so unset is only
+  // reachable on legacy pre-piece-1 rows whose required_items was
+  // never populated.
+  const requirementsUnset = !Array.isArray(opp.required_items) || opp.required_items.length === 0;
 
   const titleLine = opp.title || opp.name || '—';
   const orgName = opp.organization?.name || '';
@@ -297,21 +305,59 @@ export default function Opportunity() {
         )}
         <div className="mb-10" />
 
-        {/* 2. Provider Availability — moved UP to sit directly under
-              Details. INTERIM section ordering: the finished section
-              leads, with the still-unfinished sections (Rate structure,
-              GP modeler, Activity) cascaded below in their prior
-              relative order. Final page order is a polish-phase
-              decision. See DESIGN-NOTES. Same B box convention as the
-              Provider-page boxed sections. */}
+        {/* 2. Requirements — piece 3 of the opportunity-maturation
+              arc. Edit-on-detail: detail-page card with an unset
+              empty state (legacy null/[] only — new opps default-
+              write ['license']) and a populated readout with a
+              pencil edit affordance opening RequirementsFormDialog.
+              Plain card chrome this pass; piece 2 sweeps the B-box
+              convention across this + Rate Structure + GP Modeler
+              together. The readout was pulled OUT of the Provider
+              Availability B-box (slot 3 below) since this section
+              now owns the display, and adjacency makes the
+              "requirements → who qualifies" flow read top-to-bottom. */}
+        <SectionHeader text="Requirements" />
+        {requirementsUnset ? (
+          <div className="bg-surface border border-border rounded p-6 mb-10 flex flex-col items-center text-center gap-3">
+            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
+              Requirements not defined
+            </div>
+            <Button
+              type="button"
+              onClick={() => setRequirementsOpen(true)}
+              className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              Set requirements
+            </Button>
+          </div>
+        ) : (
+          <div className="relative bg-surface border border-border rounded p-6 mb-10">
+            <button
+              type="button"
+              onClick={() => setRequirementsOpen(true)}
+              aria-label="Edit requirements"
+              title="Edit requirements"
+              className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded text-text-dim hover:text-accent hover:bg-surface2 transition-colors"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.5} />
+            </button>
+            <div className="pr-10">
+              <RequirementsReadout items={opp.required_items} />
+            </div>
+          </div>
+        )}
+
+        {/* 3. Provider Availability — INTERIM section ordering: the
+              finished section leads with respect to the still-
+              unfinished sections (Rate structure, GP modeler,
+              Activity) below it. Requirements now sits above it as
+              the input to this matching surface. Same B box
+              convention as the Provider-page boxed sections. */}
         <SectionHeader text="Provider Availability" />
-        <div className="bg-surface-well border border-accent rounded p-6 mb-10 space-y-4
+        <div className="bg-surface-well border border-accent rounded p-6 mb-10
                         relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
                         after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
-          <RequirementsReadout items={opp.required_items} />
-          <div className="border-t border-border/40 pt-4">
-            <SuggestedProviders opportunity={opp} />
-          </div>
+          <SuggestedProviders opportunity={opp} />
         </div>
 
         <SectionHeader text="Rate structure" />
@@ -447,6 +493,16 @@ export default function Opportunity() {
       <RateStructureFormDialog
         open={rateStructureOpen}
         onOpenChange={setRateStructureOpen}
+        opportunity={opp}
+        onSave={async (payload) => {
+          await update(opp.id, payload);
+          await refetch();
+        }}
+      />
+
+      <RequirementsFormDialog
+        open={requirementsOpen}
+        onOpenChange={setRequirementsOpen}
         opportunity={opp}
         onSave={async (payload) => {
           await update(opp.id, payload);
