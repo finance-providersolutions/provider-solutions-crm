@@ -1,18 +1,25 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Building2, CalendarClock, Filter, Users, Stethoscope, Briefcase, ListTodo, LogOut } from 'lucide-react';
+import { Building2, CalendarClock, Filter, Users, Stethoscope, Briefcase, ListTodo, LogOut, TrendingUp } from 'lucide-react';
 import ThemeToggle from './ThemeToggle.jsx';
 import { cn } from '@/lib/utils';
 
+// Flat drawer for now. /financial-projections is the third
+// demand-side route (Opportunities + the future Matching page +
+// this), feeding the parked nav-reorganization slice — see
+// DESIGN-NOTES. When that slice lands, demand-side surfaces group
+// together and supply-side (Providers / Funnel / Expirations) gets
+// its own section.
 const ITEMS = [
-  { path: '/organizations', label: 'Organizations', icon: Building2     },
-  { path: '/opportunities', label: 'Opportunities', icon: Briefcase     },
-  { path: '/providers',     label: 'Providers',     icon: Stethoscope   },
-  { path: '/contacts',      label: 'Contacts',      icon: Users         },
-  { path: '/tasks',         label: 'Tasks',         icon: ListTodo      },
-  { path: '/expirations',   label: 'Expirations',   icon: CalendarClock },
-  { path: '/funnel',        label: 'Funnel',        icon: Filter        },
+  { path: '/organizations',         label: 'Organizations',         icon: Building2     },
+  { path: '/opportunities',         label: 'Opportunities',         icon: Briefcase     },
+  { path: '/financial-projections', label: 'Financial Projections', icon: TrendingUp    },
+  { path: '/providers',             label: 'Providers',             icon: Stethoscope   },
+  { path: '/contacts',              label: 'Contacts',              icon: Users         },
+  { path: '/tasks',                 label: 'Tasks',                 icon: ListTodo      },
+  { path: '/expirations',           label: 'Expirations',           icon: CalendarClock },
+  { path: '/funnel',                label: 'Funnel',                icon: Filter        },
 ];
 
 export default function Navigation({ onSignOut }) {

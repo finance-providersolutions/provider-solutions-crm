@@ -20,6 +20,7 @@ import Tasks from '@/pages/Tasks';
 import Task from '@/pages/Task';
 import Expirations from '@/pages/Expirations';
 import Funnel from '@/pages/Funnel';
+import FinancialProjections from '@/pages/FinancialProjections';
 
 function AppShell({ children }) {
   const { signOut } = useAuth();
@@ -89,6 +90,10 @@ export default function App() {
             <Route
               path="/funnel"
               element={<RequireAuth><AppShell><Funnel /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/financial-projections"
+              element={<RequireAuth><AppShell><FinancialProjections /></AppShell></RequireAuth>}
             />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -3,6 +3,8 @@ import HomeV1 from '@/pages/home/HomeV1';
 import HomeV2 from '@/pages/home/HomeV2';
 import HomeV3 from '@/pages/home/HomeV3';
 import HomeV4 from '@/pages/home/HomeV4';
+import HomeV5 from '@/pages/home/HomeV5';
+import HomeV6 from '@/pages/home/HomeV6';
 import { cn } from '@/lib/utils';
 
 // Comparison wrapper for the matching-engine Home design exploration.
@@ -24,6 +26,8 @@ const VARIANTS = [
   { key: 'v2', label: 'V2 · retention'   },
   { key: 'v3', label: 'V3 · evolved'     },
   { key: 'v4', label: 'V4 · synthesis'   },
+  { key: 'v5', label: 'V5 · financial'   },
+  { key: 'v6', label: 'V6 · attention'   },
 ];
 
 const STORAGE_KEY = 'ps-crm-home-variant';
@@ -44,7 +48,9 @@ export default function Home() {
     try { localStorage.setItem(STORAGE_KEY, variant); } catch { /* ignore */ }
   }, [variant]);
 
-  const Body = variant === 'v4' ? HomeV4
+  const Body = variant === 'v6' ? HomeV6
+             : variant === 'v5' ? HomeV5
+             : variant === 'v4' ? HomeV4
              : variant === 'v3' ? HomeV3
              : variant === 'v2' ? HomeV2
              : HomeV1;
