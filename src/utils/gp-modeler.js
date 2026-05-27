@@ -101,10 +101,10 @@ export function seedDefaults(setting) {
 //
 // savedBlob = null returns pure defaults.
 //
-// This is the only function the GPModeler component calls to
-// derive initial form state — both on first mount and on prop
-// changes (a fresh opportunity loading, or a refetch returning
-// updated saved values).
+// This is the only function the OpportunityProjection component
+// calls to derive initial form state — both on first mount and
+// on prop changes (a fresh opportunity loading, or a refetch
+// returning updated saved values).
 export function mergeAssumptions(setting, savedBlob) {
   const defaults = seedDefaults(setting);
   if (savedBlob == null) return defaults;

@@ -24,6 +24,8 @@ export default {
         danger:          'var(--r)',
         warning:         'var(--warning)',
         gp:              'var(--gp)',
+        // Headline profit-value teal — see --profit in tokens.css.
+        profit:          'var(--profit)',
 
         // shadcn/ui token aliases (HSL triplets in tokens.css)
         background:       'hsl(var(--background))',

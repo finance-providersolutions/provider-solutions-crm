@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,8 @@ import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDia
 import RateStructureFormDialog from '@/components/opportunities/RateStructureFormDialog';
 import RequirementsFormDialog from '@/components/opportunities/RequirementsFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
-import GPModeler from '@/components/opportunities/GPModeler';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import OpportunityProjection from '@/components/opportunities/OpportunityProjection';
 import SuggestedProviders from '@/components/opportunities/SuggestedProviders';
 import LogActivityForm from '@/components/activities/LogActivityForm';
 import ActivityFeed from '@/components/activities/ActivityFeed';
@@ -28,6 +29,17 @@ import { initialsFor } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 import { STAGE_BADGE } from './Opportunities';
 
+// Shared B-box class string used by every section in the
+// standing/input cluster on the opportunity detail page:
+// bg-surface-well fill + full teal border + bottom accent-to-
+// transparent gradient rule, per the two-level box convention.
+// One place so the four wells (Requirements, Provider Availability,
+// Rate structure, Opportunity Projection) stay visually in lockstep.
+const B_BOX_CLASSES =
+  "bg-surface-well border border-accent rounded p-6 mb-10 " +
+  "relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0 " +
+  "after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40";
+
 export default function Opportunity() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -37,6 +49,7 @@ export default function Opportunity() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [rateStructureOpen, setRateStructureOpen] = useState(false);
+  const [rateDetailsOpen, setRateDetailsOpen] = useState(false);
   const [requirementsOpen, setRequirementsOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
@@ -104,13 +117,13 @@ export default function Opportunity() {
 
   // Two thresholds against the same two core rate columns, on purpose:
   //   - rateStructureUnset (BOTH null) drives the Rate Structure card.
-  //     Once EITHER core rate is set, the card shows the populated grid
-  //     so the user sees their saved work.
-  //   - gpGuardOn (EITHER null) keeps the GP Modeler guarded until BOTH
-  //     core rates exist, since GP can't compute a margin from a one-
-  //     sided rate.
-  const rateStructureUnset = opp.bill_regular_hourly == null && opp.pay_regular_daily == null;
-  const gpGuardOn          = opp.bill_regular_hourly == null || opp.pay_regular_daily == null;
+  //     Once EITHER core rate is set, the card shows the populated
+  //     summary so the user sees their saved work.
+  //   - projectionGuardOn (EITHER null) keeps the Opportunity
+  //     Projection section guarded until BOTH core rates exist —
+  //     projection can't compute a margin from a one-sided rate.
+  const rateStructureUnset  = opp.bill_regular_hourly == null && opp.pay_regular_daily == null;
+  const projectionGuardOn   = opp.bill_regular_hourly == null || opp.pay_regular_daily == null;
 
   // Requirements unset = null or empty array. New opps default-write
   // ['license'] on create (OpportunityFormDialog), so unset is only
@@ -310,15 +323,15 @@ export default function Opportunity() {
               empty state (legacy null/[] only — new opps default-
               write ['license']) and a populated readout with a
               pencil edit affordance opening RequirementsFormDialog.
-              Plain card chrome this pass; piece 2 sweeps the B-box
-              convention across this + Rate Structure + GP Modeler
-              together. The readout was pulled OUT of the Provider
+              Now in the B-box convention (piece 2 swept this +
+              Rate Structure + Opportunity Projection in one pass).
+              The readout was pulled OUT of the Provider
               Availability B-box (slot 3 below) since this section
               now owns the display, and adjacency makes the
               "requirements → who qualifies" flow read top-to-bottom. */}
         <SectionHeader text="Requirements" />
         {requirementsUnset ? (
-          <div className="bg-surface border border-border rounded p-6 mb-10 flex flex-col items-center text-center gap-3">
+          <div className={B_BOX_CLASSES + ' flex flex-col items-center text-center gap-3'}>
             <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
               Requirements not defined
             </div>
@@ -331,13 +344,13 @@ export default function Opportunity() {
             </Button>
           </div>
         ) : (
-          <div className="relative bg-surface border border-border rounded p-6 mb-10">
+          <div className={B_BOX_CLASSES + ' relative'}>
             <button
               type="button"
               onClick={() => setRequirementsOpen(true)}
               aria-label="Edit requirements"
               title="Edit requirements"
-              className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded text-text-dim hover:text-accent hover:bg-surface2 transition-colors"
+              className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded text-text-dim hover:text-accent hover:bg-surface2 transition-colors z-10"
             >
               <Pencil className="w-4 h-4" strokeWidth={1.5} />
             </button>
@@ -349,20 +362,27 @@ export default function Opportunity() {
 
         {/* 3. Provider Availability — INTERIM section ordering: the
               finished section leads with respect to the still-
-              unfinished sections (Rate structure, GP modeler,
-              Activity) below it. Requirements now sits above it as
-              the input to this matching surface. Same B box
-              convention as the Provider-page boxed sections. */}
+              unfinished sections (Rate structure, Opportunity
+              Projection, Activity) below it. Requirements sits
+              above as the input to this matching surface. Same B
+              box convention as the rest of the standing cluster
+              (piece 2 brought Rate Structure + Projection into it). */}
         <SectionHeader text="Provider Availability" />
-        <div className="bg-surface-well border border-accent rounded p-6 mb-10
-                        relative after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
-                        after:h-0.5 after:bg-gradient-to-r after:from-accent after:to-transparent after:opacity-40">
+        <div className={B_BOX_CLASSES}>
           <SuggestedProviders opportunity={opp} />
         </div>
 
+        {/* 4. Rate structure — piece 2 of the maturation arc: a
+              summary-visible / details-collapsed shape inside the
+              B-box convention. Summary shows rate FACTS only (no
+              computed profit — profit-per-shift lives exclusively
+              on Opportunity Projection so trust in the headline
+              isn't eroded by a second differently-computed number).
+              Collapsed Details holds the full grid (shift defaults,
+              bill, pay, on-call, travel) unchanged. */}
         <SectionHeader text="Rate structure" />
         {rateStructureUnset ? (
-          <div className="bg-surface border border-border rounded p-6 mb-10 flex flex-col items-center text-center gap-3">
+          <div className={B_BOX_CLASSES + ' flex flex-col items-center text-center gap-3'}>
             <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
               Rate structure not set yet
             </div>
@@ -375,74 +395,212 @@ export default function Opportunity() {
             </Button>
           </div>
         ) : (
-        <div className="relative bg-surface border border-border rounded p-6 mb-10 space-y-6">
-          <button
-            type="button"
-            onClick={() => setRateStructureOpen(true)}
-            aria-label="Edit rate structure"
-            title="Edit rate structure"
-            className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded text-text-dim hover:text-accent hover:bg-surface2 transition-colors"
-          >
-            <Pencil className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <RateGroup title="Shift defaults">
-            <RateCell label="Time in"            value={opp.shift_time_in       ?? '—'} mono />
-            <RateCell label="Time out"           value={opp.shift_time_out      ?? '—'} mono />
-            <RateCell label="Regular hrs/day"    value={opp.regular_hours_per_day != null ? `${opp.regular_hours_per_day} hrs` : '—'} mono />
-            <RateCell label="OT threshold"       value={opp.ot_threshold_hours != null ? `${opp.ot_threshold_hours} hrs` : '—'} mono />
-          </RateGroup>
+          <div className={B_BOX_CLASSES}>
+            {/* Summary — rate facts only, grouped as a hierarchical
+                daily income-statement: bold group headings + bold
+                totals (each total preceded by a short right-aligned
+                "sum" divider), indented components beneath, ending
+                in the bold rate-only daily profit at the bottom.
+                ZERO reads from modeling_assumptions; every value
+                is a stored rate column or a sum/product of stored
+                rate columns. Whole dollars throughout. Plain non-
+                italic treatment (facts, not projections).
 
-          <RateGroup title="Bill (client charges)">
-            <RateCell label="Orientation / hr"        value={fmtCurrency(opp.bill_orientation_hourly,         { cents: true })} />
-            <RateCell label="Regular / hr"            value={fmtCurrency(opp.bill_regular_hourly,             { cents: true })} />
-            <RateCell label="OT / hr"                 value={fmtCurrency(opp.bill_ot_hourly,                  { cents: true })} />
-            <RateCell label="Adv. shift bonus / day"  value={fmtCurrency(opp.bill_advanced_shift_bonus_daily, { cents: true })} />
-          </RateGroup>
+                Note on the daily total billed: it sums a per-day
+                regular amount with a per-night on-call amount —
+                a typical-day snapshot assuming one on-call night
+                per working day. Stays facts-only (no read of the
+                modeler's on-call-nights assumption). */}
+            <div className="mb-5 mx-auto max-w-md sm:max-w-lg">
+              <RateFactRow
+                label={
+                  <>
+                    Regular hrs/day
+                    {opp.shift_time_in && opp.shift_time_out && (
+                      <span className="hidden sm:inline ml-1.5">
+                        ({fmt12Hour(opp.shift_time_in)} – {fmt12Hour(opp.shift_time_out)})
+                      </span>
+                    )}
+                  </>
+                }
+                value={opp.regular_hours_per_day != null ? `${opp.regular_hours_per_day} hrs` : '—'}
+              />
 
-          <RateGroup title="Pay (provider compensation)">
-            <RateCell label="Orientation / day"       value={fmtCurrency(opp.pay_orientation_daily,           { cents: true })} />
-            <RateCell label="Regular / day"           value={fmtCurrency(opp.pay_regular_daily,               { cents: true })} />
-            <RateCell label="Adv. shift bonus / day"  value={fmtCurrency(opp.pay_advanced_shift_bonus_daily,  { cents: true })} />
-            <RateCell label="Other bonus / day"       value={fmtCurrency(opp.pay_other_bonus_daily,           { cents: true })} />
-          </RateGroup>
+              {/* Income group */}
+              <RateGroupHeader label="Income" />
+              <RateSubRow
+                label={
+                  <>
+                    Reg. daily billed
+                    {opp.bill_regular_hourly != null && opp.regular_hours_per_day != null && (
+                      <span className="hidden sm:inline ml-1.5 normal-case tracking-normal text-text-muted/80 font-normal">
+                        (${fmtNumPage(opp.bill_regular_hourly)}/hr × {fmtNumPage(opp.regular_hours_per_day)} hrs)
+                      </span>
+                    )}
+                  </>
+                }
+                value={totalDailyBilled(opp) != null ? fmtCurrency(totalDailyBilled(opp)) : '—'}
+                tone="income"
+              />
+              {opp.on_call_enabled && (
+                <RateSubRow
+                  label="On-call billed / night"
+                  value={opp.bill_on_call_nightly != null ? fmtCurrency(opp.bill_on_call_nightly) : '—'}
+                  tone="income"
+                />
+              )}
+              <RateSumDivider />
+              <RateTotalRow
+                label="Daily total billed"
+                value={dailyTotalBilled(opp) != null ? fmtCurrency(dailyTotalBilled(opp)) : '—'}
+                tone="income"
+              />
 
-          {opp.on_call_enabled && (
-            <RateGroup title="On-call">
-              <RateCell label="Bill / night"          value={fmtCurrency(opp.bill_on_call_nightly,            { cents: true })} />
-              <RateCell label="Pay / night"           value={fmtCurrency(opp.pay_on_call_nightly,             { cents: true })} />
-              <RateCell label="Bill call-back / hr"   value={fmtCurrency(opp.bill_call_back_hourly,           { cents: true })} />
-              <RateCell label="Call window"           value={
-                opp.call_start_time && opp.call_end_time
-                  ? `${opp.call_start_time} → ${opp.call_end_time}`
-                  : '—'
-              } mono />
-            </RateGroup>
-          )}
+              {/* Expense group */}
+              <RateGroupHeader label="Expenses" />
+              <RateSubRow
+                label="Regular daily pay"
+                value={fmtRateExpense(sumDailyPay(opp))}
+                tone="expense"
+              />
+              {opp.on_call_enabled ? (
+                <RateSubRow
+                  label="On-call pay / night"
+                  value={fmtRateExpense(opp.pay_on_call_nightly)}
+                  tone="expense"
+                />
+              ) : (
+                <RateSubRow label="On-call" value="No" tone="neutral" />
+              )}
+              <RateSumDivider />
+              <RateTotalRow
+                label="Total pay to provider"
+                value={fmtRateExpense(totalPayToProvider(opp))}
+                tone="expense"
+              />
 
-          <RateGroup title="Travel costs">
-            {opp.ps_covers_travel ? (
-              <>
-                <RateCell label="Airfare / round-trip"  value={fmtCurrency(opp.travel_airfare_estimate,         { cents: true })} />
-                <RateCell label="Hotel / night"         value={fmtCurrency(opp.travel_hotel_per_night_estimate, { cents: true })} />
-                <RateCell label="Rental / day"          value={fmtCurrency(opp.travel_rental_per_day_estimate,  { cents: true })} />
-                <RateCell label="Coverage"              value="PS covers" />
-              </>
-            ) : (
-              <div className="col-span-2 md:col-span-4 font-mono text-xs text-text-muted">
-                Hospital covers travel
+              {/* Daily profit (rate only) — total billed minus total
+                  pay to provider, both facts-only. Now includes
+                  on-call on both sides; still excludes travel + any
+                  modeled item, so the "rate only" label still holds
+                  honestly. Sign-driven teal-positive / red-parens-
+                  underwater. Bold heading, extra spacing above. */}
+              <div className="mt-5 pt-4 border-t border-border/60">
+                <RateTotalRow
+                  label="Daily profit (rate only)"
+                  value={dailyProfitRateOnly(opp) != null
+                    ? fmtProfitFact(dailyProfitRateOnly(opp))
+                    : '—'}
+                  tone={(dailyProfitRateOnly(opp) ?? 0) < 0 ? 'expense' : 'profit'}
+                />
+              </div>
+            </div>
+
+            {/* Rate Details toggle row — custom (not the shared
+                CollapsibleSection) so the EDIT pencil can sit
+                inline at the right of the header. The chevron +
+                "Rate Details" label + gradient rule reproduce the
+                CollapsibleSection visual, but as a peer of the
+                pencil button so the row reads as one. */}
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setRateDetailsOpen(o => !o)}
+                aria-expanded={rateDetailsOpen}
+                className="flex-1 min-w-0 flex items-center gap-3 text-left group focus-visible:outline-none"
+              >
+                <ChevronDown
+                  className={cn(
+                    'w-4 h-4 text-accent opacity-75 transition-transform flex-shrink-0',
+                    !rateDetailsOpen && '-rotate-90',
+                  )}
+                  strokeWidth={1.5}
+                />
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-accent opacity-90 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  Rate Details
+                </span>
+                <div className="flex-1 h-px bg-gradient-to-r from-accent/40 to-transparent" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setRateStructureOpen(true)}
+                aria-label="Edit rate structure"
+                title="Edit rate structure"
+                className="w-8 h-8 inline-flex items-center justify-center rounded text-text-dim hover:text-accent hover:bg-surface2 transition-colors flex-shrink-0"
+              >
+                <Pencil className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            {rateDetailsOpen && (
+              <div className="mt-2 space-y-6">
+                <RateGroup title="Shift defaults">
+                  <RateCell label="Time in"            value={fmt12Hour(opp.shift_time_in)} mono />
+                  <RateCell label="Time out"           value={fmt12Hour(opp.shift_time_out)} mono />
+                  <RateCell label="Regular hrs/day"    value={opp.regular_hours_per_day != null ? `${opp.regular_hours_per_day} hrs` : '—'} mono />
+                  <RateCell label="OT threshold"       value={opp.ot_threshold_hours != null ? `${opp.ot_threshold_hours} hrs` : '—'} mono />
+                </RateGroup>
+
+                <RateGroup title="Bill (client charges)">
+                  <RateCell label="Orientation / hr"        value={fmtCurrency(opp.bill_orientation_hourly,         { cents: true })} />
+                  <RateCell label="Regular / hr"            value={fmtCurrency(opp.bill_regular_hourly,             { cents: true })} />
+                  <RateCell label="OT / hr"                 value={fmtCurrency(opp.bill_ot_hourly,                  { cents: true })} />
+                  <RateCell label="Adv. shift bonus / day"  value={fmtCurrency(opp.bill_advanced_shift_bonus_daily, { cents: true })} />
+                </RateGroup>
+
+                <RateGroup title="Pay (provider compensation)">
+                  <RateCell label="Orientation / day"       value={fmtCurrency(opp.pay_orientation_daily,           { cents: true })} />
+                  <RateCell label="Regular / day"           value={fmtCurrency(opp.pay_regular_daily,               { cents: true })} />
+                  <RateCell label="Adv. shift bonus / day"  value={fmtCurrency(opp.pay_advanced_shift_bonus_daily,  { cents: true })} />
+                  <RateCell label="Other bonus / day"       value={fmtCurrency(opp.pay_other_bonus_daily,           { cents: true })} />
+                </RateGroup>
+
+                {opp.on_call_enabled && (
+                  <RateGroup title="On-call">
+                    <RateCell label="Bill / night"          value={fmtCurrency(opp.bill_on_call_nightly,            { cents: true })} />
+                    <RateCell label="Pay / night"           value={fmtCurrency(opp.pay_on_call_nightly,             { cents: true })} />
+                    <RateCell label="Bill call-back / hr"   value={fmtCurrency(opp.bill_call_back_hourly,           { cents: true })} />
+                    <RateCell label="Call window"           value={
+                      opp.call_start_time && opp.call_end_time
+                        ? `${fmt12Hour(opp.call_start_time)} → ${fmt12Hour(opp.call_end_time)}`
+                        : '—'
+                    } mono />
+                  </RateGroup>
+                )}
+
+                <RateGroup title="Travel costs">
+                  {opp.ps_covers_travel ? (
+                    <>
+                      <RateCell label="Airfare / round-trip"  value={fmtCurrency(opp.travel_airfare_estimate,         { cents: true })} />
+                      <RateCell label="Hotel / night"         value={fmtCurrency(opp.travel_hotel_per_night_estimate, { cents: true })} />
+                      <RateCell label="Rental / day"          value={fmtCurrency(opp.travel_rental_per_day_estimate,  { cents: true })} />
+                      <RateCell label="Coverage"              value="PS covers" />
+                    </>
+                  ) : (
+                    <div className="col-span-2 md:col-span-4 font-mono text-xs text-text-muted">
+                      Hospital covers travel
+                    </div>
+                  )}
+                </RateGroup>
               </div>
             )}
-          </RateGroup>
-        </div>
+          </div>
         )}
 
-        <SectionHeader text="GP modeler" />
-        {gpGuardOn ? (
-          <div className="bg-surface border border-border rounded p-6 mb-10 font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim text-center">
+        {/* 5. Opportunity Projection (formerly GP Modeler) — same
+              B-box + summary-visible / details-collapsed shape.
+              Component owns the hybrid interaction (saved summary
+              up top, live calculator behind a CollapsibleSection
+              with dirty-state protection). Guard short-circuits to
+              a flat message when either core rate is missing. */}
+        <SectionHeader text="Opportunity Projection" />
+        {projectionGuardOn ? (
+          <div className={B_BOX_CLASSES + ' font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim text-center'}>
             Set rate structure to model gross profit
           </div>
         ) : (
-          <GPModeler opportunity={opp} onSaved={refetch} />
+          <div className={B_BOX_CLASSES}>
+            <OpportunityProjection opportunity={opp} onSaved={refetch} />
+          </div>
         )}
 
         <SectionHeader text="Activity" />
@@ -565,6 +723,203 @@ function RateCell({ label, value, mono = false }) {
       </div>
     </div>
   );
+}
+
+// Rate Structure summary uses a small hierarchy:
+//   - RateGroupHeader: bold group caption (Income / Expenses)
+//   - RateSubRow:      indented component line beneath the header,
+//                      with optional calc-note in parens
+//   - RateTotalRow:    bold sum / subtotal line under the components
+//   - RateFactRow:     plain label/value row (used for the leading
+//                      "regular hrs/day" context line)
+//
+// Color grammar follows the page-wide rule: income green for bill
+// figures, expense red-in-parens for cash outflows (rendered by
+// fmtRateExpense), profit teal/red sign-driven, neutral dim for
+// status/coverage statements. Plain non-italic throughout — Rate
+// Structure is FACTS, not projections.
+const RATE_TONE = {
+  income:  'text-income',
+  expense: 'text-danger',
+  // Headline profit teal — see --profit in tokens.css. Routed
+  // through the arbitrary-value class because the named text-profit
+  // utility hits a Tailwind JIT cache miss after the config-time
+  // color addition until a clean restart.
+  profit:  'text-[var(--profit)]',
+  neutral: 'text-text-dim',
+  text:    'text-text',
+};
+
+function RateFactRow({ label, value, tone = 'text' }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">{label}</span>
+      <span className={cn('font-mono text-sm', RATE_TONE[tone])}>{value}</span>
+    </div>
+  );
+}
+
+// Indented component row — sub-element of an Income/Expense
+// group. Optional `note` renders as a small muted caption (calc
+// derivation) on a second line beneath the label.
+function RateSubRow({ label, value, tone = 'text', note }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 pl-4 mt-1.5">
+      <div className="min-w-0 flex-1">
+        <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">{label}</div>
+        {note && (
+          <div className="font-mono text-[9px] text-text-muted/80 normal-case mt-0.5">{note}</div>
+        )}
+      </div>
+      <span className={cn('font-mono text-sm flex-shrink-0', RATE_TONE[tone])}>{value}</span>
+    </div>
+  );
+}
+
+// Bold sum/subtotal line — visually distinct from the indented
+// components feeding into it via heavier label weight and slightly
+// larger value type.
+function RateTotalRow({ label, value, tone = 'text' }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 mt-1">
+      <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-text">{label}</span>
+      <span className={cn('font-mono text-sm font-bold', RATE_TONE[tone])}>{value}</span>
+    </div>
+  );
+}
+
+// Short accounting "sum" divider — a thin right-aligned rule above
+// a RateTotalRow's value. Visually signals "the component values
+// above add up to the bold total below." Width matches the
+// approximate value column so it sits over the number, not as a
+// full-width section divider.
+function RateSumDivider() {
+  return (
+    <div className="flex justify-end mt-1.5">
+      {/* CSS-var background + opacity utility — the /60 Tailwind
+          opacity modifier doesn't decompose CSS-var colors, so we
+          use opacity-60 on the element itself instead. */}
+      <span className="block h-px w-16 bg-text-muted opacity-60" />
+    </div>
+  );
+}
+
+// Sum of the three DAILY pay facts on the opportunity row — a
+// pure sum of stored rate columns (NO modeling_assumptions
+// reads). Orientation pay is excluded (it's a one-time per-
+// placement charge, not part of the regular daily picture); on-
+// call pay is excluded (it's nightly, shown separately).
+function sumDailyPay(opp) {
+  const num = (v) => (v == null || v === '' ? 0 : Number(v) || 0);
+  return num(opp.pay_regular_daily)
+       + num(opp.pay_advanced_shift_bonus_daily)
+       + num(opp.pay_other_bonus_daily);
+}
+
+// Total daily BILLED — regular hours per day × bill hourly rate.
+// Pure rate math; ZERO modeling_assumptions reads. Returns null
+// if either input is missing so the caller can render "—" rather
+// than a misleading $0.
+function totalDailyBilled(opp) {
+  const hrs  = opp.regular_hours_per_day;
+  const rate = opp.bill_regular_hourly;
+  if (hrs == null || hrs === '' || rate == null || rate === '') return null;
+  const n = Number(hrs) * Number(rate);
+  return Number.isFinite(n) ? n : null;
+}
+
+// Daily profit (rate only) — daily total billed (with on-call
+// when enabled) minus total pay to provider (also with on-call
+// when enabled). Now includes on-call on both sides; still
+// excludes travel + any modeled item (OT hours, advanced shift
+// bonuses, etc.), so "rate only" still holds honestly. The
+// label is what keeps this from reading as a duplicate of
+// Opportunity Projection's fully-modeled profit-per-shift.
+// Returns null when daily total billed can't be computed.
+function dailyProfitRateOnly(opp) {
+  const billed = dailyTotalBilled(opp);
+  if (billed == null) return null;
+  return billed - totalPayToProvider(opp);
+}
+
+// 12-hour AM/PM formatter for time-of-day fields (Postgres `time`
+// values come through as "HH:MM:SS" strings). Falls back to the
+// raw value if it can't be parsed.
+function fmt12Hour(timeStr) {
+  if (timeStr == null || timeStr === '') return '—';
+  const parts = String(timeStr).split(':');
+  const hour = parseInt(parts[0], 10);
+  const min  = parts[1] ?? '00';
+  if (!Number.isFinite(hour)) return String(timeStr);
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${min} ${period}`;
+}
+
+// Expense formatter for Rate Structure — wraps a stored rate
+// column (or sum of rate columns) in accounting parens. Zero or
+// null renders as plain "$0" without parens. Whole dollars, no
+// cents — Rate Structure throughout drops cents per piece-2 r3.
+function fmtRateExpense(value) {
+  if (value == null || value === '') return '$0';
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return '$0';
+  return `(${fmtCurrency(Math.abs(n))})`;
+}
+
+// Profit-as-fact formatter — sign-aware. Negative wraps in
+// accounting parens; positive renders as plain currency. Whole
+// dollars to match the rest of Rate Structure. Caller applies the
+// color class via the tone prop.
+function fmtProfitFact(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '$0';
+  const n = Number(value);
+  if (n < 0) return `(${fmtCurrency(Math.abs(n))})`;
+  return fmtCurrency(n);
+}
+
+// Bold group heading inside the Rate Structure summary — sits at
+// the top of each grouped block (Income / Expenses) with indented
+// component rows + a bold total row beneath. Heavier weight than
+// the previous flat caption so the hierarchy reads at a glance.
+function RateGroupHeader({ label }) {
+  return (
+    <div className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-text mt-5 mb-1 pt-3 border-t border-border/40">
+      {label}
+    </div>
+  );
+}
+
+// Daily total billed — the income sum that anchors the income
+// group. Regular hourly billed (rate × hrs) PLUS on-call billed
+// per night when on-call is enabled. Mixes a per-day and a
+// per-night amount on purpose: it's a "typical day" snapshot
+// (assumes one on-call night per working day), facts-only, no
+// assumption-blob reads.
+function dailyTotalBilled(opp) {
+  const reg = totalDailyBilled(opp);
+  if (reg == null) return null;
+  if (!opp?.on_call_enabled) return reg;
+  const oc = opp.bill_on_call_nightly == null ? 0 : Number(opp.bill_on_call_nightly) || 0;
+  return reg + oc;
+}
+
+// Total pay to provider — sum-of-daily-pay rate columns PLUS
+// on-call nightly pay when enabled. Mirror of dailyTotalBilled
+// on the expense side. Facts-only.
+function totalPayToProvider(opp) {
+  const reg = sumDailyPay(opp);
+  if (!opp?.on_call_enabled) return reg;
+  const oc = opp.pay_on_call_nightly == null ? 0 : Number(opp.pay_on_call_nightly) || 0;
+  return reg + oc;
+}
+
+// Page-local fmtNum companion of OpportunityProjection.jsx's
+// fmtNum — drops trailing zeros so calc notes read clean.
+function fmtNumPage(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '0';
+  const x = Number(n);
+  return Number.isInteger(x) ? String(x) : x.toFixed(2).replace(/\.?0+$/, '');
 }
 
 function RequirementsReadout({ items }) {

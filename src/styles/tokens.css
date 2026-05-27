@@ -28,7 +28,16 @@
   --radius:       5px;
   --g:            #3ecf8e;   /* income / positive / won  */
   --r:            #ff8080;   /* danger / lost / expired  */
-  --gp:           #7ee8e8;   /* gross profit / accent variant */
+  --gp:           #7ee8e8;   /* gross profit / accent variant — legacy alias of accent */
+  /* Headline profit-value teal — richer/deeper than --accent (#7ee8e8,
+     which is the heading/label tone). Used wherever a positive bottom-
+     line profit number needs to read as the OUTCOME, distinct from its
+     income/expense inputs. Picked against #0b1c2e: high contrast,
+     saturated enough to read premium rather than muddy, sits in the
+     teal hue family so the page still feels coherent. piece 5 (Home
+     financial highlighting) is the second consumer; that's the reason
+     this is a named token rather than a one-off hex. */
+  --profit:       #2dd4bf;
   --warning:      #c8a840;   /* CRM-only — amber for estimates / soon-expiring */
   --header-h:     58px;
   --footer-h:     52px;
@@ -80,6 +89,7 @@
   --g:            #1a7a3a;
   --r:            #c03030;
   --gp:           #0e8080;
+  --profit:       #0e8c80;
   --warning:      #8a6f1c;
 
   --background:           207 53% 96%;
