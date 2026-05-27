@@ -1,54 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Check, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
-import { CardKebab } from '@/components/ui/card-kebab';
 import TaskFormDialog from '@/components/tasks/TaskFormDialog';
+import TaskCard from '@/components/tasks/TaskCard';
 import { useAuth } from '@/hooks/useAuth';
 import { useTasks } from '@/hooks/useTasks';
 import { useChromeBottom } from '@/hooks/useChromeBottom';
-import { TASK_PRIORITIES, TASK_STATUSES, labelFor } from '@/utils/constants';
-import { fmtDate } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 
-// Slice 4 card swap. Same two-layout responsive shape as the
-// Opportunities card with one deliberate per-page variation: no
-// left-anchored logo slot, because tasks carry no identity image
-// and forcing a parent thumb or typed icon adds chrome without
-// payoff. Meta block claims full card width on both layouts.
+// Slice 4 card swap. TaskCard extracted to
+// src/components/tasks/TaskCard.jsx so TasksSection (the detail-page
+// consumer) can share the same shape with hideParent={true}. /tasks
+// keeps parent visible (the global view's whole point is to see what
+// each task belongs to).
 //
 // Per-card affordances:
 //   - quick-complete checkbox (open tabs only), 36×36 hit area
 //   - kebab → Edit / Delete (list-context, dialog Delete remains)
 //   - whole card → /tasks/:id detail page
-//
-// Priority is mono text (not a badge); high gets text-warning for
-// visual emphasis. Status keeps the badge treatment as the
-// state-shaped attribute. No tasks-pill equivalent — tasks ARE
-// the content, no parent-scoped count.
-
-const PRIORITY_TEXT = {
-  low:    'text-text-muted',
-  normal: 'text-text-dim',
-  high:   'text-warning',
-};
-
-const STATUS_BADGE = {
-  open:      'bg-accent-dim text-accent      border-accent/40',
-  completed: 'bg-income/15  text-income      border-income/40',
-  cancelled: 'bg-surface2   text-text-muted  border-border',
-};
 
 const TAB_MY     = 'my-open';
 const TAB_ALL    = 'all-open';
@@ -412,222 +391,12 @@ function TaskCardList({ rows, loading, error, tab, emptyText, onOpen, onEdit, on
   );
 }
 
-// Two-layout responsive card, no logo slot (per-page variation —
-// tasks have no identity image). Same asymmetric vertical rhythm
-// pattern as Opportunities cards (negative top margin on the
-// font-display title, leading-none compensations).
-//
-// Mobile (below md): four rows full-width.
-//   row 1 — priority (mono text, conditional color) + quick-complete
-//           + kebab, right-aligned
-//   row 2 — title (accent teal, font-display, primary)
-//   row 3 — parent type + name (white sans), "No parent" muted when null
-//   row 4 — due date (overdue/completed treatments) + status badge
-//
-// Wide (md+): single horizontal row.
-//   left cluster   — parent type mono cap-label / parent name
-//   center cluster — priority text / title (accent teal, larger)
-//   right cluster  — quick-complete + kebab on top / due + status badge below
-function TaskCard({ task: t, showQuickComplete, onOpen, onEdit, onDelete, onQuickComplete }) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const overdue = t.status === 'open' && t.due_date && t.due_date < today;
-  const parent = parentInfo(t);
-
-  const priorityNode = t.priority ? (
-    <span className={cn(
-      'font-mono text-[11px] uppercase tracking-[0.12em]',
-      PRIORITY_TEXT[t.priority] || 'text-text-dim',
-    )}>
-      {labelFor(TASK_PRIORITIES, t.priority)} priority
-    </span>
-  ) : null;
-
-  const statusBadge = t.status ? (
-    <Badge variant="outline" className={cn('flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.1em]', STATUS_BADGE[t.status])}>
-      {labelFor(TASK_STATUSES, t.status)}
-    </Badge>
-  ) : null;
-
-  const dueText = t.due_date ? fmtDate(t.due_date) : null;
-  const dueClass = overdue
-    ? 'text-danger font-medium'
-    : t.status === 'completed'
-      ? 'text-text-muted'
-      : 'text-text-dim';
-
-  const actionsCluster = (
-    <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
-      {showQuickComplete && (
-        <QuickCompleteButton onClick={onQuickComplete} />
-      )}
-      <CardKebab ariaLabel="Task actions" onEdit={onEdit} onDelete={onDelete} />
-    </div>
-  );
-
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(); } }}
-      className="relative bg-surface border border-border rounded p-3 md:p-5 cursor-pointer transition-colors hover:border-accent hover:bg-surface2 focus-visible:border-accent focus-visible:outline-none"
-    >
-      {/* ── Mobile / narrow layout (below md) ─────────────────── */}
-      <div className="md:hidden flex flex-col">
-        {/* Row 1 — priority mono text + quick-complete + kebab */}
-        <div className="flex items-center gap-2 min-w-0">
-          <p className="flex-1 min-w-0 leading-none truncate">
-            {priorityNode || <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-muted">—</span>}
-          </p>
-          {actionsCluster}
-        </div>
-        {/* Row 2 — title (accent teal, primary). Negative top margin
-            compensates for DM Serif Display's intrinsic line-box
-            padding above the cap-height (matches Opportunities). */}
-        <h3 className="-mt-1 font-display text-[18px] text-accent leading-none break-words">
-          {t.title || '—'}
-        </h3>
-        {/* Row 3 — parent identification block. mt-3 creates the
-            disproportionate title-to-parent break — visibly the
-            largest gap on the card. Three sub-rows:
-              3a — parent type label (mono cap) on its own line
-              3b — parent name (white sans)
-              3c — "at {hospital}" sub-line, opportunity parents
-                   only, in muted mono. The opportunity title alone
-                   rarely identifies which hospital the task belongs
-                   to, so the hospital surfaces as contextual depth.
-            Parentless tasks render a single italic "— No parent". */}
-        <div className="mt-3 min-w-0">
-          {parent ? (
-            <>
-              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted leading-none truncate">
-                {parent.type}
-              </p>
-              <p className="mt-1 text-text text-[15px] font-medium leading-none truncate">
-                {parent.name}
-              </p>
-              {parent.hospital && (
-                <p className="mt-1 font-mono text-[11px] text-text-dim leading-none truncate">
-                  at {parent.hospital}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-text-muted text-[14px] italic leading-none">
-              — No parent
-            </p>
-          )}
-        </div>
-        {/* Row 4 — due date + status badge. mt-1 keeps tight under row 3. */}
-        <div className="mt-1 flex items-center gap-2 min-w-0">
-          <p className={cn('flex-1 min-w-0 font-mono text-[13px] leading-none truncate', dueClass)}>
-            {dueText ? (overdue ? `Due ${dueText} · Overdue` : `Due ${dueText}`) : 'No due date'}
-          </p>
-          {statusBadge}
-        </div>
-      </div>
-
-      {/* ── Wide / horizontal layout (md and up) ──────────────── */}
-      <div className="hidden md:flex items-center gap-5">
-        {/* Left cluster — parent type / parent name / optional
-            "at {hospital}" sub-line for opportunity parents. Three
-            stacked lines matching the mobile parent block above. */}
-        <div className="min-w-0 basis-1/3 flex flex-col gap-0.5">
-          {parent ? (
-            <>
-              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted leading-snug truncate">
-                {parent.type}
-              </p>
-              <p className="text-text text-[16px] lg:text-[17px] font-medium leading-tight truncate">
-                {parent.name}
-              </p>
-              {parent.hospital && (
-                <p className="font-mono text-[11px] lg:text-[12px] text-text-dim leading-snug truncate">
-                  at {parent.hospital}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-text-muted text-[15px] italic leading-snug">
-              — No parent
-            </p>
-          )}
-        </div>
-
-        {/* Center cluster — priority mono text + title */}
-        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-          {priorityNode && (
-            <p className="leading-snug truncate">{priorityNode}</p>
-          )}
-          <h3 className="font-display text-[18px] lg:text-[20px] text-accent leading-tight truncate">
-            {t.title || '—'}
-          </h3>
-        </div>
-
-        {/* Right indicator cluster — actions on top, due + status below */}
-        <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
-          {actionsCluster}
-          <div className="flex items-center gap-2">
-            <span className={cn('font-mono text-[12px]', dueClass)}>
-              {dueText ? (overdue ? `Due ${dueText} · Overdue` : `Due ${dueText}`) : 'No due date'}
-            </span>
-            {statusBadge}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 36×36 hit area to match the chrome-strip floor inherited from
-// Slice 1. The visible check tile inside is 28×28, but the button
-// itself fills the larger box so thumb taps on phones reliably hit
-// it. Stops propagation so the card's onClick doesn't fire under
-// the tap.
-function QuickCompleteButton({ onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      onKeyDown={(e) => e.stopPropagation()}
-      aria-label="Mark complete"
-      className="flex-shrink-0 inline-flex items-center justify-center w-9 h-9 rounded text-text-muted hover:text-income hover:bg-income/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-income"
-    >
-      <span className="inline-flex items-center justify-center w-7 h-7 rounded border border-border">
-        <Check className="w-4 h-4" strokeWidth={2.5} />
-      </span>
-    </button>
-  );
-}
-
 function EmptyContainer({ children }) {
   return (
     <div className="bg-surface border border-border rounded flex flex-col items-center justify-center text-center px-6 py-20 min-h-[240px]">
       {children}
     </div>
   );
-}
-
-function parentInfo(task) {
-  if (task.opportunity) {
-    const name = task.opportunity.title || task.opportunity.name || 'Untitled';
-    // hospital surfaces only when the parent is an opportunity —
-    // organization parents ARE the hospital, provider parents have
-    // no hospital concept.
-    const hospital = task.opportunity.organization?.name || null;
-    return { type: 'OPPORTUNITY', name, hospital, href: `/opportunities/${task.opportunity.id}` };
-  }
-  if (task.organization) {
-    return { type: 'ORGANIZATION', name: task.organization.name, hospital: null, href: `/organizations/${task.organization.id}` };
-  }
-  if (task.provider) {
-    const name = [task.provider.first_name, task.provider.last_name].filter(Boolean).join(' ') || 'Unnamed';
-    return { type: 'PROVIDER', name, hospital: null, href: `/providers/${task.provider.id}` };
-  }
-  return null;
 }
 
 function emptyTextFor(t) {

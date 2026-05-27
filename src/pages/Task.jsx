@@ -210,15 +210,32 @@ function parentInfo(task) {
   return null;
 }
 
+// Horizontal label-value Details grid — matches Provider / Org /
+// Opp / Contact. Task's Details still sits inside the older
+// bg-surface card wrapper + SectionHeader (the
+// DetailsCollapsibleHeader migration is a separate cluster-A
+// decision). The DetailGrid shape inside the wrapper is the same
+// horizontal pattern.
 function DetailGrid({ children }) {
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">{children}</div>;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5">
+      {children}
+    </div>
+  );
 }
 
 function DetailField({ label, full = false, children }) {
   return (
-    <div className={full ? 'md:col-span-2' : ''}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mb-1.5">{label}</div>
-      <div className="text-text">{children}</div>
+    <div className={cn(
+      'flex items-baseline gap-3 min-w-0',
+      full && 'md:col-span-2',
+    )}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted w-32 flex-shrink-0 leading-snug">
+        {label}
+      </div>
+      <div className="text-text text-sm leading-snug flex-1 min-w-0 break-words">
+        {children}
+      </div>
     </div>
   );
 }

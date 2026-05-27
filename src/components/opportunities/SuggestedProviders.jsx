@@ -20,93 +20,90 @@ import { initialsFor } from '@/utils/storage';
 import { POSITION_TYPES, labelFor, specialtyAbbrFor } from '@/utils/constants';
 import { cn } from '@/lib/utils';
 
-// Phase 4a + 4b — provider matching with the four-stage lifecycle
-// and three hard eligibility filters.
+// Phase 4a + 4b — provider matching surface.
+//
+// ORTHOGONAL-AXES STRUCTURE — restructured from the original
+// four-stage lifecycle to a three-tier shape where TIER = selection
+// intent for THIS opportunity, BADGE = privileging progress at the
+// opportunity's hospital. The two axes are independent: a provider
+// can be Selected for Placement AND already Privileged, or Selected
+// AND not-yet-privileged, or Not Selected but Privileged here, etc.
+// The tier groups the operationally-coherent set ("did we commit to
+// this provider for this opp"); the badge says where they stand in
+// the privileging work. See DESIGN-NOTES "Provider Availability
+// tiers" for the override history.
 //
 // HARD ELIGIBILITY FILTERS (all must pass for a provider to appear):
 //   1. STATE LICENSE: provider holds a non-withdrawn license row for
 //      the opportunity's state (resolved via opp.organization.state).
 //      Any non-withdrawn status counts — active, applied, pending,
-//      and expired all let the row APPEAR; the lifecycle/verdict
-//      badge tells the truth about its actual readiness. The single
-//      'withdrawn' status (legacy column writes) excludes the row.
+//      and expired all let the row APPEAR; the badge tells the truth
+//      about its actual readiness. 'withdrawn' excludes the row.
 //   2. SPECIALTY: provider.specialty === opportunity.specialty.
-//      Constrained-Select equality on both sides — safe. (Previously
-//      a grouping; now a hard filter — the "Different specialty"
-//      lower group is removed.)
 //   3. POSITION TYPE: provider.position_type === opportunity
-//      .position_type. CHECK-constrained text on both sides, same
-//      shared POSITION_TYPES list — safe equality.
+//      .position_type.
 //
-// Failing any filter excludes the provider entirely. Within the
-// filtered list, rank by lifecycle stage (Privileged > Applied >
-// Selected > Eligible > verdict-fallback), then name.
+// Failing any filter excludes the provider entirely.
+//
+// TIER DECISION TREE (per provider, after the hard filters above):
+//   if (placement exists for this opp)                  → Selected
+//   else if (active OR applied privilege at oppOrgId)   → Suggested/Eligible
+//   else if (verdict.overall in {ready, expiring})      → Suggested/Eligible
+//   else                                                → Blocked
+//
+// "Active or applied privilege at the hospital" is treated as a
+// positive eligibility signal under the new structure — it now feeds
+// the Suggested/Eligible tier rather than carving out a "Privileged
+// & Ready" tier of its own. The fact that a provider is already
+// privileged (or applied) at the hospital becomes a row-level badge
+// signal — a selection prompt for the recruiter — rather than its
+// own group.
+//
+// BADGE = privileging progress at the opportunity's hospital. Within
+// Selected and Eligible tiers:
+//   privileged → "Privileged"  (income green; warning amber if
+//                                expiring within 90 days)
+//   applied    → "Applied"     (warning amber, with "application in
+//                                progress at this hospital" subline)
+//   none       → "Eligible"    (text white; warning amber if verdict
+//                                says expiring)
+// "Selected" is NOT a badge label — selection is conveyed by tier
+// grouping; the badge's only job inside non-Blocked tiers is the
+// orthogonal privileging-progress axis.
+//
+// Blocked tier rows keep the verdict-fallback labels (Blocked /
+// Incomplete) with their reason-detail sublines.
 //
 // EMPTY/EDGE STATES:
 //   - No resolvable opportunity state (no hospital or hospital has
 //     no state): show 0 providers + "No state is associated with
-//     this opportunity." This is an unexpected setup, not engineered
-//     around.
+//     this opportunity." Unexpected setup, not engineered around.
 //   - Filtered list is empty but state is known: show "No providers
 //     are currently eligible for this opportunity."
-//
-// Short / empty lists against today's sparse data are honest
-// coverage truth, not a bug — three hard gates against largely-one-
-// specialty data correctly produces few results.
-//
-// LIFECYCLE STAGES (post-filter, sort order):
-//   Privileged — granted, current privilege at the opp's hospital.
-//                Hospital-grain: applies to every opp at this
-//                hospital.
-//   Applied    — facility-privilege application in progress at the
-//                opp's hospital. Also hospital-grain.
-//   Selected   — a placements row exists for this (provider,
-//                opportunity) pair. Opportunity-specific. The only
-//                lifecycle state the CRM writes.
-//   Eligible   — portable-ready, no further commitment yet.
-//
-// Privileged / Applied wording reads "at this hospital," not "for
-// this opportunity" — the hospital-grain truth must stay legible.
-//
-// Cardinality is enforced in the placements hook (at-most-one
-// non-cancelled row per pair), not in the schema.
 
-// Within the Selected + Applied tier, selected sorts ABOVE applied —
-// selection is the stronger commit (a recruiter-authored placement)
-// than an in-flight privilege application that hasn't yet resulted
-// in committal. Lifecycle progression still has applied AFTER selected
-// across the full stage chain, but for the sort key inside the
-// combined tier we want selected on top.
-const LIFECYCLE_RANK = {
-  privileged:   0,
-  selected:     1,
-  applied:      2,
-  eligible:     3,
+// PRIVILEGE_PROGRESS_* — the row-level orthogonal axis (badge state
+// and within-tier sort key). Selection is NOT in this enum — selection
+// is a tier-membership signal, not a badge signal.
+//
+// Sort rank within a tier: privileged > applied > none. Surfaces
+// ready-to-deploy rows at the top of each tier (recruiter sees the
+// strongest candidates / strongest selections first).
+const PRIVILEGE_PROGRESS_RANK = {
+  privileged: 0,
+  applied:    1,
+  none:       2,
 };
 
-const LIFECYCLE_LABEL = {
-  privileged:   'Privileged',
-  applied:      'Applied',
-  selected:     'Selected',
-  eligible:     'Eligible',
-};
-
-// Tones reuse the existing credentialing palette so badges read in
-// the same visual grammar as CredentialingSection's summary lines.
-//   privileged → income green   (granted, the top-of-stack achievement)
-//   applied    → warning amber  (in progress)
-//   selected   → accent teal    (recruiter chose; also the section's
-//                                identity colour — names, borders)
-//   eligible   → text (white)   (qualified, in the pool, no special
-//                                status — deliberately neutral so it
-//                                doesn't read as Privileged-green or
-//                                Selected-teal). The expiring override
-//                                still flips this to warning amber.
-const LIFECYCLE_TONE = {
-  privileged: 'text-income',
-  applied:    'text-warning',
-  selected:   'text-accent',
-  eligible:   'text-text',
+// Label map for non-Blocked tier rows. 'none' renders as "Eligible"
+// because within a non-Blocked tier the row is by definition eligible
+// — the badge just communicates "no privilege progress yet at this
+// hospital." Same label whether the provider is in Selected or
+// Suggested tier — the tier carries the selection truth, the label
+// carries the orthogonal privilege truth.
+const PRIVILEGE_PROGRESS_LABEL = {
+  privileged: 'Privileged',
+  applied:    'Applied',
+  none:       'Eligible',
 };
 
 const VERDICT_RANK = { ready: 0, expiring: 1, indeterminate: 2, blocked: 3 };
@@ -157,31 +154,59 @@ function derivePrivilegeStatus(row) {
   });
 }
 
-// Lifecycle stage derivation for ONE provider against ONE
-// opportunity. Returns the stage key or null when the provider has
-// no lifecycle standing (fall back to the verdict label).
-function deriveLifecycle({ verdict, opportunityOrgId, privileges, placement }) {
-  const hospitalPrivs = (privileges ?? []).filter(
-    p => (p?.organization_id ?? p?.organization?.id) === opportunityOrgId,
-  );
-  const withStatus = hospitalPrivs.map(p => ({ row: p, status: derivePrivilegeStatus(p) }));
-
+// Compute the privileging-progress state for one provider against
+// the opportunity's hospital. Returns the badge axis: which privilege
+// row at this hospital is the leading signal, and whether the active
+// one (if any) is expiring within 90 days.
+//
+// 'privileged' beats 'applied' beats 'none' inside this function —
+// reflecting that a granted current privilege is the strongest single
+// signal at the hospital. (Inside the bigger picture, selection still
+// trumps privileging for tier membership — see computeGroup below.)
+function computePrivilegeProgress(hospitalPrivs) {
+  const withStatus = (hospitalPrivs ?? []).map(p => ({
+    row: p,
+    status: derivePrivilegeStatus(p),
+  }));
   const activePriv = withStatus.find(p => p.status === 'active');
   if (activePriv) {
     return {
-      stage: 'privileged',
+      state:    'privileged',
       expiring: privilegeIsExpiringSoon(activePriv.row),
     };
   }
   if (withStatus.some(p => p.status === 'applied')) {
-    return { stage: 'applied' };
+    return { state: 'applied' };
   }
-  if (placement) {
-    return { stage: 'selected' };
+  return { state: 'none' };
+}
+
+// Compute which TIER (Selected / Suggested-Eligible / Blocked) a
+// provider belongs to for this opportunity. Tiers are mutually
+// exclusive and exhaustive. Pure function — takes the resolved
+// signals as input, doesn't re-fetch.
+//
+// Cascade (placement intent over lifecycle progression — see
+// DESIGN-NOTES "Tier structure restructured"):
+//   1. placement for this opp exists      → 'selected'
+//   2. active OR applied priv at hospital → 'eligible'   (positive
+//                                                          eligibility
+//                                                          signal,
+//                                                          not selection)
+//   3. verdict ready / expiring           → 'eligible'   (portable-
+//                                                          ready, no
+//                                                          hospital
+//                                                          progress)
+//   4. everything else                    → 'blocked'
+function computeGroup({ placement, privProgress, verdict }) {
+  if (placement) return 'selected';
+  if (privProgress.state === 'privileged' || privProgress.state === 'applied') {
+    return 'eligible';
   }
-  if (verdict.overall === 'ready')    return { stage: 'eligible' };
-  if (verdict.overall === 'expiring') return { stage: 'eligible', expiring: true };
-  return null;
+  if (verdict?.overall === 'ready' || verdict?.overall === 'expiring') {
+    return 'eligible';
+  }
+  return 'blocked';
 }
 
 export default function SuggestedProviders({ opportunity }) {
@@ -219,14 +244,7 @@ export default function SuggestedProviders({ opportunity }) {
   //     (highest-ranked non-empty tier).
   //   • Chevron-driven (multi-open or empty): any combination of
   //     sections open via individual chevrons, with NO card showing
-  //     focus. Card focus is deliberately cleared whenever a chevron
-  //     toggle or Expand All fires, because the "this is the focused
-  //     tier" claim no longer holds when multiple sections are open.
-  //
-  // State is null until the user interacts — that lets the default
-  // (which depends on tier sizes, computed after early returns) flow
-  // through cleanly. Handlers resolve `current ?? defaultState`
-  // before mutating, so they always start from the live values.
+  //     focus.
   const [tierOverride, setTierOverride] = useState(null);
 
   async function handleSelect(provider) {
@@ -303,6 +321,10 @@ export default function SuggestedProviders({ opportunity }) {
     );
   }
 
+  // Per-provider evaluation — verdict from the readiness engine,
+  // placement from the per-opp lookup, privilege progress from the
+  // hospital-scoped subset of the provider's privileges, group from
+  // the three signals together.
   const evaluated = filtered.map(provider => {
     const verdict = deriveShiftReadiness({
       opportunity,
@@ -312,43 +334,34 @@ export default function SuggestedProviders({ opportunity }) {
       provider,
     });
     const placement = placementByProvider.get(provider.id) ?? null;
-    const lifecycle = deriveLifecycle({
-      verdict,
-      opportunityOrgId: oppOrgId,
-      privileges: privilegesByProvider.get(provider.id) ?? [],
-      placement,
-    });
-    return { provider, verdict, placement, lifecycle };
+    const hospitalPrivs = (privilegesByProvider.get(provider.id) ?? [])
+      .filter(p => (p?.organization_id ?? p?.organization?.id) === oppOrgId);
+    const privProgress = computePrivilegeProgress(hospitalPrivs);
+    const group = computeGroup({ placement, privProgress, verdict });
+    return { provider, verdict, placement, privProgress, group };
   });
 
-  const sorted = sortByLifecycle(evaluated);
-
-  // Tier bucketing — presentation regroup of the already-derived
-  // lifecycle. The four-tier UX is:
-  //   • Privileged & Ready  — lifecycle.stage === 'privileged'
-  //   • Selected + Applied  — 'selected' or 'applied'
-  //   • Suggested/Eligible  — 'eligible'
-  //   • Blocked             — null lifecycle (verdict-fallback row)
-  // Counts always render (zero reads as "zero", not "missing");
-  // empty tiers do NOT render their CollapsibleSection.
+  // Tier bucketing — three tiers, mutually exclusive. Counts always
+  // render (zero reads as "zero", not "missing"); empty tiers do NOT
+  // render their CollapsibleSection.
   const tiers = {
-    privileged: [],
-    selApp:     [],
-    eligible:   [],
-    blocked:    [],
+    selected: [],
+    eligible: [],
+    blocked:  [],
   };
-  for (const item of sorted) {
-    const stage = item.lifecycle?.stage ?? null;
-    if (stage === 'privileged')                            tiers.privileged.push(item);
-    else if (stage === 'selected' || stage === 'applied')  tiers.selApp.push(item);
-    else if (stage === 'eligible')                         tiers.eligible.push(item);
-    else                                                   tiers.blocked.push(item);
+  for (const item of evaluated) {
+    tiers[item.group].push(item);
+  }
+  // Within-tier sort: by privilege-progress (privileged > applied >
+  // none) then by name for non-Blocked tiers; by verdict severity
+  // then name for the Blocked tier (unchanged).
+  for (const key of Object.keys(tiers)) {
+    tiers[key] = sortWithinTier(tiers[key], key);
   }
   const counts = {
-    privileged: tiers.privileged.length,
-    selApp:     tiers.selApp.length,
-    eligible:   tiers.eligible.length,
-    blocked:    tiers.blocked.length,
+    selected: tiers.selected.length,
+    eligible: tiers.eligible.length,
+    blocked:  tiers.blocked.length,
   };
 
   const renderRow = (item) => (
@@ -361,17 +374,13 @@ export default function SuggestedProviders({ opportunity }) {
     />
   );
 
-  // Tier metadata in display order — card label, tone for the
-  // KPI-card value, section heading inside its CollapsibleSection.
-  // Note: the Selected+Applied tier card reads "Selected" (the
-  // primary lifecycle the recruiter authored) while its section
-  // heading keeps "Selected + Applied" since the Applied rows fold
-  // into the same group.
+  // Three-tier definitions in display order. Section heading is the
+  // longer phrase shown inside the CollapsibleSection; card label is
+  // the compact KPI strip label.
   const tierDefs = [
-    { key: 'privileged', card: 'Ready',    section: 'Privileged & Ready',  color: 'green'   },
-    { key: 'selApp',     card: 'Selected', section: 'Selected + Applied',  color: 'default' },
-    { key: 'eligible',   card: 'Eligible', section: 'Suggested / Eligible', color: 'white'  },
-    { key: 'blocked',    card: 'Blocked',  section: 'Blocked',              color: 'red'    },
+    { key: 'selected', card: 'Selected', section: 'Selected for Placement', color: 'default' },
+    { key: 'eligible', card: 'Eligible', section: 'Suggested / Eligible',   color: 'white'   },
+    { key: 'blocked',  card: 'Blocked',  section: 'Blocked',                color: 'red'     },
   ];
 
   // Default-open rule: the highest-ranked tier that has members.
@@ -430,7 +439,7 @@ export default function SuggestedProviders({ opportunity }) {
         </div>
       )}
 
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {tierDefs.map(t => (
           <TierKPICard
             key={t.key}
@@ -477,15 +486,27 @@ export default function SuggestedProviders({ opportunity }) {
   );
 }
 
-function sortByLifecycle(list) {
-  return list.slice().sort((a, b) => {
-    const ra = a.lifecycle ? LIFECYCLE_RANK[a.lifecycle.stage] : 99;
-    const rb = b.lifecycle ? LIFECYCLE_RANK[b.lifecycle.stage] : 99;
+// Within-tier sort. Privilege-progress is the primary key for the
+// non-Blocked tiers — privileged rows above applied above none — so
+// the strongest selections (ready to deploy) and strongest candidates
+// (already privileged here) surface at the top of each tier. Name
+// breaks ties.
+//
+// The Blocked tier sorts by verdict severity then name — unchanged
+// from the previous implementation. Blocked rows have privProgress
+// .state === 'none' uniformly, so the privilege rank wouldn't
+// distinguish them anyway.
+function sortWithinTier(items, tierKey) {
+  return items.slice().sort((a, b) => {
+    if (tierKey === 'blocked') {
+      const va = VERDICT_RANK[a.verdict.overall] ?? 99;
+      const vb = VERDICT_RANK[b.verdict.overall] ?? 99;
+      if (va !== vb) return va - vb;
+      return fmtName(a.provider ?? {}).localeCompare(fmtName(b.provider ?? {}));
+    }
+    const ra = PRIVILEGE_PROGRESS_RANK[a.privProgress.state] ?? 99;
+    const rb = PRIVILEGE_PROGRESS_RANK[b.privProgress.state] ?? 99;
     if (ra !== rb) return ra - rb;
-    // Fallback: providers without a lifecycle stage sort by verdict rank.
-    const va = VERDICT_RANK[a.verdict.overall] ?? 99;
-    const vb = VERDICT_RANK[b.verdict.overall] ?? 99;
-    if (va !== vb) return va - vb;
     return fmtName(a.provider ?? {}).localeCompare(fmtName(b.provider ?? {}));
   });
 }
@@ -500,22 +521,32 @@ function RowList({ items, muted = false, renderRow }) {
 }
 
 function ProviderRow({ item, acting, onSelect, onUnselect }) {
-  const { provider, verdict, placement, lifecycle } = item;
+  const { provider, verdict, placement, privProgress, group } = item;
   const reason = topReason(verdict.reasons);
   const isSelected = Boolean(placement);
 
-  // Label + tone: lifecycle stage wins when present, else fall back
-  // to the verdict label so blocked/indeterminate providers still
-  // carry their original reading.
+  // Badge derivation — the orthogonal-axes structure puts privilege
+  // progress on the badge (and selection on the tier). Blocked tier
+  // rows fall through to the verdict-fallback label since their
+  // privProgress is uniformly 'none' (the badge would otherwise read
+  // "Eligible" which is wrong for a blocked row).
   let label, tone;
-  if (lifecycle) {
-    label = LIFECYCLE_LABEL[lifecycle.stage];
-    tone  = lifecycle.expiring && lifecycle.stage !== 'applied'
-      ? 'text-warning'
-      : LIFECYCLE_TONE[lifecycle.stage];
-  } else {
+  if (group === 'blocked') {
     label = VERDICT_LABEL[verdict.overall] ?? verdict.overall;
     tone  = VERDICT_TONE[verdict.overall] ?? 'text-text-dim';
+  } else if (privProgress.state === 'privileged') {
+    label = PRIVILEGE_PROGRESS_LABEL.privileged;
+    tone  = privProgress.expiring ? 'text-warning' : 'text-income';
+  } else if (privProgress.state === 'applied') {
+    label = PRIVILEGE_PROGRESS_LABEL.applied;
+    tone  = 'text-warning';
+  } else {
+    // privProgress.state === 'none', non-Blocked tier. The badge
+    // says "Eligible" — same label whether the row sits in Selected
+    // or Suggested tier, since the tier carries selection truth and
+    // the badge carries the orthogonal privilege truth.
+    label = PRIVILEGE_PROGRESS_LABEL.none;
+    tone  = (verdict.overall === 'expiring') ? 'text-warning' : 'text-text';
   }
 
   // Desktop meta — the full position·specialty·state line under the
@@ -542,20 +573,16 @@ function ProviderRow({ item, acting, onSelect, onUnselect }) {
     </div>
   );
 
+  // Left-border accent on selected rows was dropped under the
+  // orthogonal-axes restructure — the Selected for Placement tier
+  // already conveys selection at the group level, so the per-row
+  // border read as redundant. If selection-by-row needs to come
+  // back, this is the place to reinstate it.
   return (
-    <li className={cn(
-      'relative',
-      // Left border accent makes Selected-or-further rows scan-
-      // distinct from mere suggestions, without changing the row's
-      // height or layout.
-      isSelected && 'border-l-2 border-accent',
-    )}>
+    <li className="relative">
       <Link
         to={`/providers/${provider.id}`}
-        className={cn(
-          'block py-3 pr-12 rounded hover:bg-surface2/40 transition-colors',
-          isSelected ? 'pl-2' : 'pl-1 -ml-1',
-        )}
+        className="block py-3 pl-1 -ml-1 pr-12 rounded hover:bg-surface2/40 transition-colors"
       >
         <div className="flex items-start gap-3">
           <Thumb
@@ -601,18 +628,22 @@ function ProviderRow({ item, acting, onSelect, onUnselect }) {
               )}
             </div>
 
-            {/* Warning / reason lines below either layout. */}
-            {reason && !lifecycle && (
+            {/* Sublines below either layout. The applied / expiring
+                sublines key off privilege progress directly (not tier
+                membership) — a Selected-and-applied row still shows
+                "Privilege application in progress at this hospital,"
+                same as a Suggested-and-applied row would. */}
+            {group === 'blocked' && reason && (
               <div className={cn('text-xs mt-1 leading-snug', tone)}>
                 {reason.detail}
               </div>
             )}
-            {lifecycle && lifecycle.stage === 'applied' && (
+            {privProgress.state === 'applied' && (
               <div className="text-xs mt-1 leading-snug text-warning">
                 Privilege application in progress at this hospital.
               </div>
             )}
-            {lifecycle && lifecycle.stage === 'privileged' && lifecycle.expiring && (
+            {privProgress.state === 'privileged' && privProgress.expiring && (
               <div className="text-xs mt-1 leading-snug text-warning">
                 Privilege at this hospital expires within 90 days.
               </div>

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/api/supabase';
 import { useAuth } from '@/hooks/useAuth';
 
-// Filters: { organizationId, contactId, providerId, sinceDays, limit }
+// Filters: { organizationId, contactId, opportunityId, providerId, sinceDays, limit }
 // Each is optional. The hook always orders by occurred_at desc.
 export function useActivities(filters = {}) {
-  const { organizationId, contactId, providerId, sinceDays, limit } = filters;
+  const { organizationId, contactId, opportunityId, providerId, sinceDays, limit } = filters;
   const { user } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,7 @@ export function useActivities(filters = {}) {
 
     if (organizationId) query = query.eq('organization_id', organizationId);
     if (contactId)      query = query.eq('contact_id',      contactId);
+    if (opportunityId)  query = query.eq('opportunity_id',  opportunityId);
     if (providerId)     query = query.eq('provider_id',     providerId);
     if (sinceDays != null) {
       const cutoff = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000).toISOString();
@@ -40,7 +41,7 @@ export function useActivities(filters = {}) {
     }
     setData(rows ?? []);
     setLoading(false);
-  }, [organizationId, contactId, providerId, sinceDays, limit]);
+  }, [organizationId, contactId, opportunityId, providerId, sinceDays, limit]);
 
   useEffect(() => { refetch(); }, [refetch]);
 

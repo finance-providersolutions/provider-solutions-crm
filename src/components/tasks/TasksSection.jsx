@@ -1,30 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Plus, Check } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
+import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import TaskFormDialog from '@/components/tasks/TaskFormDialog';
+import TaskCard from '@/components/tasks/TaskCard';
 import { useTasks } from '@/hooks/useTasks';
-import { TASK_PRIORITIES, TASK_STATUSES, labelFor } from '@/utils/constants';
-import { fmtDate } from '@/utils/formatters';
-import { cn } from '@/lib/utils';
-
-// Same badge palettes as Tasks.jsx — duplicated rather than lifted
-// to constants because two consumers don't earn the extraction yet
-// (per BUILD_PLAN §8).
-const PRIORITY_BADGE = {
-  low:    'bg-surface2   text-text-muted border-border',
-  normal: 'bg-surface2   text-text-dim   border-border',
-  high:   'bg-warning/15 text-warning    border-warning/40',
-};
-const STATUS_BADGE = {
-  open:      'bg-accent-dim text-accent      border-accent/40',
-  completed: 'bg-income/15  text-income      border-income/40',
-  cancelled: 'bg-surface2   text-text-muted  border-border',
-};
 
 // Reusable parent-scoped task list for embedding in detail pages.
 //
@@ -40,16 +22,31 @@ const STATUS_BADGE = {
 // instances; both run on mount but the completed query's results are
 // only rendered when the toggle is on.
 //
+// CARD LAYOUT (cluster-A universal): uses the shared TaskCard with
+// hideParent={true}. The parent column collapses because the parent
+// IS the page — we already know whose tasks these are. Mobile becomes
+// three rows (priority+actions / title / due+status); the wide layout
+// drops the left cluster and the center cluster reclaims that space.
+// Replaced the table-based TaskMiniTable that lived here previously.
+//
 // "+ New task" opens TaskFormDialog with the parent locked to the
 // current resource type and record. The locked display in the dialog
 // removes the radio + picker entirely — the user can't change parent
 // type or record from this entry point. Editing existing tasks goes
 // through the same dialog without the lock so re-parenting works.
+//
+// "View all tasks" routes to /tasks, the global list. Lives in the
+// same control row as "+ New task" — same outline-treatment Button.
+// Cluster-A universal: every detail-page Tasks section carries a
+// "View all" affordance routing to its global archive.
 export default function TasksSection({ parentColumn, parentId, parentLabel }) {
+  const navigate = useNavigate();
   const filterKey = parentColumnToFilterKey(parentColumn);
   const [showCompleted, setShowCompleted] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const deleteTriggerRef = useRef(null);
 
   const openFilter = useMemo(
     () => ({ [filterKey]: parentId, status: 'open' }),
@@ -88,7 +85,13 @@ export default function TasksSection({ parentColumn, parentId, parentLabel }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-3">
+      {/* Control row — "Show completed" toggle on the left, action
+          cluster (View all + New task) on the right. ml-auto on the
+          action cluster keeps it right-aligned even when the row
+          wraps on narrow viewports (justify-between would left-align
+          the cluster on its own wrapped row). Both buttons share the
+          same outline treatment to read as a peer pair. */}
+      <div className="flex items-center gap-2 flex-wrap mb-3">
         <button
           type="button"
           onClick={() => setShowCompleted(s => !s)}
@@ -96,23 +99,38 @@ export default function TasksSection({ parentColumn, parentId, parentLabel }) {
         >
           {showCompleted ? 'Hide completed' : 'Show completed (30d)'}
         </button>
-        <Button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          variant="outline"
-          className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
-        >
-          <Plus className="w-4 h-4 mr-1" /> New task
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            type="button"
+            onClick={() => navigate('/tasks')}
+            variant="outline"
+            className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+          >
+            View all <ArrowRight className="w-4 h-4 ml-1" />
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            variant="outline"
+            className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+          >
+            <Plus className="w-4 h-4 mr-1" /> New task
+          </Button>
+        </div>
       </div>
 
-      <TaskMiniTable
+      <TaskCardStack
         rows={sortedOpen}
         loading={openTasks.loading}
         error={openTasks.error}
         emptyText={emptyOpenTextFor(parentColumn)}
         showQuickComplete
+        onOpen={(row) => navigate(`/tasks/${row.id}`)}
         onEdit={setEditing}
+        onDelete={(row, triggerEl) => {
+          deleteTriggerRef.current = triggerEl ?? null;
+          setDeleteTarget(row);
+        }}
         onQuickComplete={handleQuickComplete}
       />
 
@@ -121,13 +139,18 @@ export default function TasksSection({ parentColumn, parentId, parentLabel }) {
           <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted mb-2 border-t border-border/40 pt-4">
             Completed in last 30 days
           </div>
-          <TaskMiniTable
+          <TaskCardStack
             rows={completedTasks.data}
             loading={completedTasks.loading}
             error={completedTasks.error}
             emptyText="None completed in the last 30 days."
             showQuickComplete={false}
+            onOpen={(row) => navigate(`/tasks/${row.id}`)}
             onEdit={setEditing}
+            onDelete={(row, triggerEl) => {
+              deleteTriggerRef.current = triggerEl ?? null;
+              setDeleteTarget(row);
+            }}
             onQuickComplete={handleQuickComplete}
           />
         </div>
@@ -158,19 +181,42 @@ export default function TasksSection({ parentColumn, parentId, parentLabel }) {
           setEditing(null);
         }}
       />
+
+      {/* List-context Delete from the card kebab. The Edit dialog
+          continues to carry its own in-dialog Delete; this confirm
+          dialog handles direct kebab-delete without opening Edit. */}
+      <ConfirmDeleteDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(next) => { if (!next) setDeleteTarget(null); }}
+        triggerRef={deleteTriggerRef}
+        title={deleteTarget
+          ? `Delete "${deleteTarget.title || 'this task'}"?`
+          : 'Delete?'}
+        onConfirm={async () => {
+          try {
+            await openTasks.remove(deleteTarget.id);
+            await completedTasks.refetch();
+            setDeleteTarget(null);
+          } catch (err) {
+            console.error('Task delete failed', err);
+            toast.error(err?.message || 'Delete failed.');
+            throw err;
+          }
+        }}
+      />
     </>
   );
 }
 
-function TaskMiniTable({ rows, loading, error, emptyText, showQuickComplete, onEdit, onQuickComplete }) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-
-  // No-card loading / error / empty states — plain muted text on the
-  // page background, matching the credentialing sections and the
-  // activity feed. Only the populated case carries the table-card.
-  // Affects every consumer (Provider, Organization, Opportunity) —
-  // intentional consistency improvement. Row layout and on-click
-  // behavior when populated are unchanged.
+// Card stack renderer — replaces the table-based TaskMiniTable that
+// lived here previously. Loading / error / empty states keep the
+// plain-text shape (no card wrapper) that the cluster-A empty-state
+// universal already established. Only the populated case changes:
+// stacked TaskCards (hideParent={true}) instead of table rows.
+function TaskCardStack({
+  rows, loading, error, emptyText, showQuickComplete,
+  onOpen, onEdit, onDelete, onQuickComplete,
+}) {
   if (loading) {
     return (
       <div className="px-6 py-6 text-center font-mono text-xs uppercase tracking-[0.1em] text-text-muted">
@@ -194,66 +240,19 @@ function TaskMiniTable({ rows, loading, error, emptyText, showQuickComplete, onE
   }
 
   return (
-    <div className="bg-surface border border-border rounded relative overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-border hover:bg-transparent">
-            <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Title</TableHead>
-            <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Due</TableHead>
-            <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Priority</TableHead>
-            <TableHead className="text-text-dim font-mono text-[10px] uppercase tracking-[0.12em]">Status</TableHead>
-            {showQuickComplete && <TableHead className="w-[60px]"></TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map(t => {
-            const overdue = t.status === 'open' && t.due_date && t.due_date < today;
-            return (
-              <TableRow key={t.id} className="border-border hover:bg-surface2 transition-colors">
-                <TableCell>
-                  <button
-                    type="button"
-                    onClick={() => onEdit(t)}
-                    className="text-text font-medium text-left hover:text-accent transition-colors"
-                  >
-                    {t.title}
-                  </button>
-                </TableCell>
-                <TableCell className={cn(
-                  'font-mono text-xs',
-                  overdue ? 'text-danger' : t.status === 'completed' ? 'text-text-muted' : 'text-text-dim',
-                )}>
-                  {t.due_date ? fmtDate(t.due_date) : <span className="text-text-muted">—</span>}
-                </TableCell>
-                <TableCell>
-                  {t.priority ? (
-                    <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', PRIORITY_BADGE[t.priority])}>
-                      {labelFor(TASK_PRIORITIES, t.priority)}
-                    </Badge>
-                  ) : <span className="text-text-muted">—</span>}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', STATUS_BADGE[t.status])}>
-                    {labelFor(TASK_STATUSES, t.status)}
-                  </Badge>
-                </TableCell>
-                {showQuickComplete && (
-                  <TableCell>
-                    <button
-                      type="button"
-                      onClick={() => onQuickComplete(t.id)}
-                      aria-label="Mark complete"
-                      className="w-7 h-7 inline-flex items-center justify-center rounded border border-border text-text-muted hover:border-income hover:text-income transition-colors"
-                    >
-                      <Check className="w-4 h-4" strokeWidth={2.5} />
-                    </button>
-                  </TableCell>
-                )}
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+    <div className="flex flex-col gap-3">
+      {rows.map(t => (
+        <TaskCard
+          key={t.id}
+          task={t}
+          hideParent
+          showQuickComplete={showQuickComplete}
+          onOpen={() => onOpen(t)}
+          onEdit={() => onEdit(t)}
+          onDelete={(triggerEl) => onDelete(t, triggerEl)}
+          onQuickComplete={() => onQuickComplete(t.id)}
+        />
+      ))}
     </div>
   );
 }
@@ -266,12 +265,6 @@ function parentColumnToFilterKey(parentColumn) {
 }
 
 function emptyOpenTextFor(parentColumn) {
-  // Per the brief's stopping point: "If TasksSection's empty state
-  // copy needs different wording for organization vs opportunity vs
-  // provider parents, pick natural copy per parentColumn." Going
-  // generic-by-resource ('organization') rather than type-specific
-  // ('hospital'), since organizations.type can be hospital, partner,
-  // or other and the section isn't filtered by type.
   if (parentColumn === 'organization_id') return 'No open tasks for this organization.';
   if (parentColumn === 'opportunity_id')  return 'No open tasks for this opportunity.';
   return 'No open tasks for this provider.';

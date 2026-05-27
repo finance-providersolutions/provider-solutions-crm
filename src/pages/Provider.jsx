@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Mail, Pencil, Phone, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, Mail, Pencil, Phone, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +51,13 @@ export default function Provider() {
   const navigate = useNavigate();
   const { data: provider, loading, error, refetch } = useProvider(id);
   const { update, remove } = useProviders();
-  const activities = useActivities({ providerId: id });
+  // Cluster-A universal: detail-page Activity sections default the
+  // feed to the last 90 days. Older activity stays accessible from
+  // the global /activities archive via the View All button below.
+  // Consumer-passed (not a hook default) so each detail page makes
+  // the call deliberately; Org and Opp adopt the same line in their
+  // sub-arcs.
+  const activities = useActivities({ providerId: id, sinceDays: 90 });
 
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -340,9 +346,13 @@ export default function Provider() {
           <SectionHeader text="Hospital Standing" />
           <ProviderPlacementsSection providerId={provider.id} />
 
-          {/* 5. Activity — Provider-local pattern: "+ New activity"
-                button toggles LogActivityForm visibility. Closing the
-                form on successful submit keeps the surface compact. */}
+          {/* 5. Activity — Cluster-A universal: toggle pattern + 90-
+                day default + "View all activity" affordance routing to
+                /activities. The "+ New activity" button reveals
+                LogActivityForm; closing the form on successful submit
+                keeps the surface compact. View All sits in the same
+                control row as a peer outline button — the two share
+                visual treatment so they read as paired actions. */}
           <SectionHeader text="Activity" />
           {logOpen ? (
             <LogActivityForm
@@ -354,7 +364,15 @@ export default function Provider() {
               }}
             />
           ) : (
-            <div className="flex items-center justify-end mb-3">
+            <div className="flex items-center justify-end gap-2 flex-wrap mb-3">
+              <Button
+                type="button"
+                onClick={() => navigate('/activities')}
+                variant="outline"
+                className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+              >
+                View all <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
               <Button
                 type="button"
                 onClick={() => setLogOpen(true)}
@@ -368,7 +386,7 @@ export default function Provider() {
           <ActivityFeed
             activities={activities.data}
             loading={activities.loading}
-            emptyText="No activity logged yet."
+            emptyText="No activity in the last 90 days."
             onDelete={handleDeleteActivity}
           />
           <div className="mb-10" />
@@ -426,13 +444,29 @@ export default function Provider() {
   );
 }
 
-// Dense label-value grid for the Details section. Same DetailField
-// treatment used elsewhere in the app, but no card wrapper and a
-// tighter gap-y so the block reads as a compact reference panel
-// rather than a presented data card.
+// Dense label-value grid for the Details section. Label sits LEFT
+// in a fixed-width column, value sits RIGHT next to it on the same
+// row. The horizontal layout collapses vertical space significantly
+// compared to the older stacked label-above-value shape — short
+// values that used to take two lines now take one, and the section
+// reads as a tight reference table rather than a sparse card.
+//
+// Label column is w-32 (128px) — wide enough to fit the longest
+// label currently in use across detail pages ("FLIGHT PREFERENCE",
+// 17 mono chars at 10px ≈ 123px) on one line. Labels that exceed
+// this still wrap rather than overflow into the value area.
+//
+// The grid stays 2-column on md+ so each column is itself a stack
+// of horizontal label-value rows. "full" fields span both columns
+// and keep the same horizontal label-value shape — useful for Notes
+// and anything else that wants the wider value area.
+//
+// This is the prototype shape for the cluster-A shared DetailGrid
+// extraction. Once approved on Provider, the same component replaces
+// the local DetailGrid/DetailField on Org / Opp / Contact / Task.
 function DetailGrid({ children }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 mb-10">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5 mb-10">
       {children}
     </div>
   );
@@ -440,9 +474,16 @@ function DetailGrid({ children }) {
 
 function DetailField({ label, full = false, children }) {
   return (
-    <div className={full ? 'md:col-span-2' : ''}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mb-0.5">{label}</div>
-      <div className="text-text text-sm leading-snug">{children}</div>
+    <div className={cn(
+      'flex items-baseline gap-3 min-w-0',
+      full && 'md:col-span-2',
+    )}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted w-32 flex-shrink-0 leading-snug">
+        {label}
+      </div>
+      <div className="text-text text-sm leading-snug flex-1 min-w-0 break-words">
+        {children}
+      </div>
     </div>
   );
 }

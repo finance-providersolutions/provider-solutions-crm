@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,7 +45,10 @@ export default function Opportunity() {
   const navigate = useNavigate();
   const { data: opp, loading, error, refetch } = useOpportunity(id);
   const { update, remove } = useOpportunities();
-  const activities = useActivities({ opportunityId: id });
+  // Cluster-A universal: detail-page Activity sections default the
+  // feed to the last 90 days. Older activity stays accessible from
+  // the global /activities archive via the View All button below.
+  const activities = useActivities({ opportunityId: id, sinceDays: 90 });
 
   const [editOpen, setEditOpen] = useState(false);
   const [rateStructureOpen, setRateStructureOpen] = useState(false);
@@ -57,6 +60,10 @@ export default function Opportunity() {
   // one-off. Uses the shared DetailsCollapsibleHeader so this page's
   // first section reads in lockstep with the other detail pages.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Cluster-A universal: "+ New activity" button toggles the log
+  // form on/off. Closing the form on successful submit keeps the
+  // surface compact. Mirrors Provider and Org.
+  const [logOpen, setLogOpen] = useState(false);
   const deleteOppTriggerRef = useRef(null);
   const activityDeleteTriggerRef = useRef(null);
 
@@ -316,7 +323,6 @@ export default function Opportunity() {
             </DetailField>
           </DetailGrid>
         )}
-        <div className="mb-10" />
 
         {/* 2. Requirements — piece 3 of the opportunity-maturation
               arc. Edit-on-detail: detail-page card with an unset
@@ -603,16 +609,43 @@ export default function Opportunity() {
           </div>
         )}
 
+        {/* Cluster-A universal: toggle pattern + 90-day default +
+            View All Activity affordance routing to /activities.
+            Mirrors Provider and Org. */}
         <SectionHeader text="Activity" />
-        <LogActivityForm
-          parentColumn="opportunity_id"
-          parentId={id}
-          onLogged={async (input) => { await activities.create(input); }}
-        />
+        {logOpen ? (
+          <LogActivityForm
+            parentColumn="opportunity_id"
+            parentId={id}
+            onLogged={async (input) => {
+              await activities.create(input);
+              setLogOpen(false);
+            }}
+          />
+        ) : (
+          <div className="flex items-center justify-end gap-2 flex-wrap mb-3">
+            <Button
+              type="button"
+              onClick={() => navigate('/activities')}
+              variant="outline"
+              className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              View all <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setLogOpen(true)}
+              variant="outline"
+              className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              <Plus className="w-4 h-4 mr-1" /> New activity
+            </Button>
+          </div>
+        )}
         <ActivityFeed
           activities={activities.data}
           loading={activities.loading}
-          emptyText="No activity logged yet."
+          emptyText="No activity in the last 90 days."
           onDelete={handleDeleteActivity}
         />
         <div className="mb-10" />
@@ -688,15 +721,28 @@ export default function Opportunity() {
   );
 }
 
+// Horizontal label-value Details grid — matches Provider /
+// Organization. Cluster-A: pending shared-component extraction.
 function DetailGrid({ children }) {
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">{children}</div>;
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5 mb-10">
+      {children}
+    </div>
+  );
 }
 
 function DetailField({ label, full = false, children }) {
   return (
-    <div className={full ? 'md:col-span-2' : ''}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mb-1.5">{label}</div>
-      <div className="text-text">{children}</div>
+    <div className={cn(
+      'flex items-baseline gap-3 min-w-0',
+      full && 'md:col-span-2',
+    )}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted w-32 flex-shrink-0 leading-snug">
+        {label}
+      </div>
+      <div className="text-text text-sm leading-snug flex-1 min-w-0 break-words">
+        {children}
+      </div>
     </div>
   );
 }

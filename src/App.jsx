@@ -18,6 +18,7 @@ import Opportunities from '@/pages/Opportunities';
 import Opportunity from '@/pages/Opportunity';
 import Tasks from '@/pages/Tasks';
 import Task from '@/pages/Task';
+import Activities from '@/pages/Activities';
 import Expirations from '@/pages/Expirations';
 import Funnel from '@/pages/Funnel';
 import FinancialProjections from '@/pages/FinancialProjections';
@@ -82,6 +83,10 @@ export default function App() {
             <Route
               path="/tasks/:id"
               element={<RequireAuth><AppShell><Task /></AppShell></RequireAuth>}
+            />
+            <Route
+              path="/activities"
+              element={<RequireAuth><AppShell><Activities /></AppShell></RequireAuth>}
             />
             <Route
               path="/expirations"

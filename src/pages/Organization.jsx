@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import Thumb from '@/components/uploads/Thumb';
 import { useOrganization, useOrganizations } from '@/hooks/useOrganizations';
 import { useContacts } from '@/hooks/useContacts';
 import { useActivities } from '@/hooks/useActivities';
+import { useChromeBottom } from '@/hooks/useChromeBottom';
 import { CONTACT_ROLES, ORGANIZATION_TYPES, labelFor } from '@/utils/constants';
 import { fmtDateTime, fmtName, fmtPhone } from '@/utils/formatters';
 import { initialsFor } from '@/utils/storage';
@@ -36,7 +37,10 @@ export default function Organization() {
   const { data: org, loading, error, refetch } = useOrganization(id);
   const { update, remove } = useOrganizations();
   const contacts = useContacts({ organizationId: id });
-  const activities = useActivities({ organizationId: id });
+  // Cluster-A universal: detail-page Activity sections default the
+  // feed to the last 90 days. Older activity stays accessible from
+  // the global /activities archive via the View All button below.
+  const activities = useActivities({ organizationId: id, sinceDays: 90 });
 
   const [editOpen, setEditOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
@@ -47,9 +51,38 @@ export default function Organization() {
   // Details collapsed by default — matches the provider-page Details
   // one-off pattern, same DetailsCollapsibleHeader shape.
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Cluster-A universal: "+ New activity" button toggles the log
+  // form on/off. Closing the form on successful submit keeps the
+  // surface compact. Mirrors Provider.
+  const [logOpen, setLogOpen] = useState(false);
   const deleteOrgTriggerRef = useRef(null);
   const contactDeleteTriggerRef = useRef(null);
   const activityDeleteTriggerRef = useRef(null);
+
+  // Fixed condensed header — mirrors the Provider and Opportunity
+  // pattern. ResizeObserver tracks the header's measured height so
+  // the body's paddingTop follows live (badge wrap, long names).
+  // Replicated inline (~12 lines) rather than extracted to a shared
+  // shell — this is the third detail page adopting the fixed-header
+  // pattern (rule of three), and the extraction is queued as its
+  // own follow-up sub-arc per DESIGN-NOTES.
+  const headerRef = useRef(null);
+  const [headerH, setHeaderH] = useState(0);
+  useLayoutEffect(() => {
+    if (!headerRef.current) return;
+    const el = headerRef.current;
+    setHeaderH(el.getBoundingClientRect().height);
+    const ro = new ResizeObserver(() => {
+      setHeaderH(el.getBoundingClientRect().height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [org]);
+
+  // Expose total fixed chrome height to the shared Dialog primitive
+  // via `--ps-chrome-bottom` so dialogs opened from this page anchor
+  // below all fixed chrome.
+  useChromeBottom(58 + headerH);
 
   async function performDelete() {
     if (!org) return;
@@ -102,47 +135,90 @@ export default function Organization() {
   if (error)   return <Centered tone="danger">{error.message}</Centered>;
   if (!org)    return <Centered>Organization not found.</Centered>;
 
+  // Location line for the header. Mirrors Provider's home-state
+  // line beneath the name — small mono, identity-supporting context.
+  const locationLine = [org.city, org.state].filter(Boolean).join(', ');
+
   return (
-    <div className="min-h-full pb-12 px-6" style={{ paddingTop: 'calc(58px + env(safe-area-inset-top))' }}>
-      <div className="max-w-6xl mx-auto py-8">
+    <>
+      {/* ── Fixed condensed header — mirrors the Provider and
+            Opportunity pattern. Sits below the suite-wide PageHeader
+            (58px, z-200) and above body content. Stays visible while
+            Dialogs are open; the shared Dialog primitive anchors
+            below `--ps-chrome-bottom` (set by useChromeBottom above)
+            so dialog tops clear this header. ── */}
+      <div
+        ref={headerRef}
+        className="fixed left-0 right-0 z-[150] bg-surface border-b border-border"
+        style={{ top: 'calc(58px + env(safe-area-inset-top))' }}
+      >
+        <div className="max-w-6xl mx-auto px-6 py-3 flex items-start gap-3 sm:gap-4">
+          <Thumb
+            path={org.logo_path}
+            bucket="organization-logos"
+            alt={`${org.name} logo`}
+            fallback={initialsFor(org.name)}
+            shape="square"
+            className="h-16 w-16 sm:h-20 sm:w-20 text-sm flex-shrink-0"
+          />
+
+          <div className="flex-1 min-w-0 flex flex-col gap-1 sm:gap-1.5">
+            {/* Name — smaller on mobile so it fits on one line; current
+                size at sm+. Truncate is a safety net for very long names. */}
+            <h1 className="font-display text-[20px] sm:text-[28px] text-text leading-tight truncate">
+              {org.name}
+            </h1>
+
+            {/* Location row — city, ST. Renders when the org carries
+                both; absent for the rare unset case (back-fill not
+                forced). Mono dim, mirrors Provider's home location line. */}
+            {locationLine && (
+              <div className="font-mono text-[11px] text-text-dim truncate">
+                {locationLine}
+              </div>
+            )}
+
+            {/* Type badge row. Created timestamp lives in Details
+                (matches Opportunity treatment — header chrome stays
+                light; reference info moves to the collapsible). */}
+            {org.type && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', TYPE_BADGE[org.type])}>
+                  {labelFor(ORGANIZATION_TYPES, org.type)}
+                </Badge>
+              </div>
+            )}
+          </div>
+
+          {/* Right column — Edit button. Provider/Opp shape: h-9
+              px-2.5 sm:px-3, icon-only on mobile. */}
+          <div className="flex-shrink-0 flex flex-col items-end gap-2">
+            <Button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit"
+              title="Edit"
+              className="h-9 px-2.5 sm:px-3 bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.5} />
+              <span className="hidden sm:inline sm:ml-1.5">Edit</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div
+        className="min-h-full pb-12 px-6"
+        style={{ paddingTop: `calc(58px + ${headerH}px + env(safe-area-inset-top) + 24px)` }}
+      >
+        <div className="max-w-6xl mx-auto">
         <button
           onClick={() => navigate('/organizations')}
           className="flex items-center gap-1.5 text-text-dim hover:text-accent transition-colors font-mono text-[11px] uppercase tracking-[0.12em] mb-6"
         >
           <ArrowLeft className="w-3.5 h-3.5" /> All organizations
         </button>
-
-        <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-          <div className="flex items-start gap-4">
-            <Thumb
-              path={org.logo_path}
-              bucket="organization-logos"
-              alt={`${org.name} logo`}
-              fallback={initialsFor(org.name)}
-              size="xl"
-              shape="square"
-            />
-            <div>
-              <h1 className="font-display text-4xl text-text leading-tight mb-2">{org.name}</h1>
-              <div className="flex items-center gap-2 flex-wrap">
-                {org.type && (
-                  <Badge variant="outline" className={cn('font-mono text-[10px] uppercase tracking-[0.1em]', TYPE_BADGE[org.type])}>
-                    {labelFor(ORGANIZATION_TYPES, org.type)}
-                  </Badge>
-                )}
-                <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted">
-                  Created {fmtDateTime(org.created_at)}
-                </span>
-              </div>
-            </div>
-          </div>
-          <Button
-            onClick={() => setEditOpen(true)}
-            className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
-          >
-            <Pencil className="w-4 h-4 mr-1" /> Edit
-          </Button>
-        </div>
 
         {/* Details — one-off collapsible matching the Provider-page
             Details pattern. Same DetailsCollapsibleHeader, same
@@ -178,6 +254,10 @@ export default function Organization() {
               </div>
             </DetailField>
 
+            <DetailField label="Created">
+              {org.created_at ? fmtDateTime(org.created_at) : <Empty />}
+            </DetailField>
+
             <DetailField label="Notes" full>
               {org.notes
                 ? <p className="text-text whitespace-pre-wrap">{org.notes}</p>
@@ -185,7 +265,6 @@ export default function Organization() {
             </DetailField>
           </DetailGrid>
         )}
-        <div className="mb-10" />
 
         {/* Hospital-only sections: privilege roster (hospital-grain,
             excludes Selected — that lives on the opportunity page) and
@@ -309,16 +388,46 @@ export default function Organization() {
           </ul>
         )}
 
+        {/* Cluster-A universal: toggle pattern + 90-day default +
+            View All Activity affordance routing to /activities. The
+            "+ New activity" button reveals LogActivityForm; closing
+            the form on successful submit keeps the surface compact.
+            View All sits in the same control row as a peer outline
+            button. Mirrors Provider. */}
         <SectionHeader text="Activity" />
-        <LogActivityForm
-          parentColumn="organization_id"
-          parentId={id}
-          onLogged={async (input) => { await activities.create(input); }}
-        />
+        {logOpen ? (
+          <LogActivityForm
+            parentColumn="organization_id"
+            parentId={id}
+            onLogged={async (input) => {
+              await activities.create(input);
+              setLogOpen(false);
+            }}
+          />
+        ) : (
+          <div className="flex items-center justify-end gap-2 flex-wrap mb-3">
+            <Button
+              type="button"
+              onClick={() => navigate('/activities')}
+              variant="outline"
+              className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              View all <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setLogOpen(true)}
+              variant="outline"
+              className="border-accent/40 text-accent hover:bg-accent-dim hover:text-accent font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              <Plus className="w-4 h-4 mr-1" /> New activity
+            </Button>
+          </div>
+        )}
         <ActivityFeed
           activities={activities.data}
           loading={activities.loading}
-          emptyText="No activity logged yet."
+          emptyText="No activity in the last 90 days."
           onDelete={handleDeleteActivity}
         />
         <div className="mb-10" />
@@ -388,19 +497,35 @@ export default function Organization() {
         title="Delete this activity entry?"
         onConfirm={performDeleteActivity}
       />
+      </div>
+    </>
+  );
+}
+
+// Horizontal label-value Details grid — label LEFT in a fixed-width
+// column, value RIGHT next to it. Same shape across all detail
+// pages (Provider is the prototype reference). Cluster-A: pending
+// extraction to a shared component once the pattern is settled.
+function DetailGrid({ children }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5 mb-10">
+      {children}
     </div>
   );
 }
 
-function DetailGrid({ children }) {
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">{children}</div>;
-}
-
 function DetailField({ label, full = false, children }) {
   return (
-    <div className={full ? 'md:col-span-2' : ''}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted mb-1.5">{label}</div>
-      <div className="text-text">{children}</div>
+    <div className={cn(
+      'flex items-baseline gap-3 min-w-0',
+      full && 'md:col-span-2',
+    )}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted w-32 flex-shrink-0 leading-snug">
+        {label}
+      </div>
+      <div className="text-text text-sm leading-snug flex-1 min-w-0 break-words">
+        {children}
+      </div>
     </div>
   );
 }
