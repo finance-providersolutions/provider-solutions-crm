@@ -130,8 +130,8 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface border-border text-text max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="bg-surface border-border text-text max-w-2xl">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="font-display text-2xl">
             {isEdit ? 'Edit provider' : 'New provider'}
           </DialogTitle>
@@ -140,7 +140,8 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
           </DialogDescription>
         </DialogHeader>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
           <div className="flex flex-col items-start gap-6 md:flex-row">
             <div className="space-y-1.5">
               <Label className="block font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
@@ -268,18 +269,13 @@ export default function ProviderFormDialog({ open, onOpenChange, provider, onSav
               Archived (hidden from active lists)
             </span>
           </label>
+          </div>
 
-          {/* Phone: Cancel-above-Save full-width, sticky to dialog scroll bottom (decision #5).
-              Desktop: inline-right, no stick. Bypasses DialogFooter to control col-direction
-              and to attach max-sm:sticky cleanly. Shadow gives elevation cue without depending
-              on the dialog's exact padding. */}
-          <div className="
-            flex flex-col gap-2
-            sm:flex-row sm:items-center sm:justify-end sm:gap-2 sm:pt-2
-            max-sm:sticky max-sm:bottom-0 max-sm:py-3
-            max-sm:bg-surface max-sm:border-t max-sm:border-border
-            max-sm:shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.3)]
-          ">
+          {/* Footer pinned outside the scroll region by flex layout
+              (no sticky needed; the primitive's flex-col + maxHeight
+              keeps this a real footer). */}
+          <div className="flex-shrink-0 flex flex-col gap-2 pt-3 mt-4 border-t border-border
+                          sm:flex-row sm:items-center sm:justify-end sm:gap-2">
             <Button
               type="button" variant="ghost"
               onClick={() => onOpenChange(false)}

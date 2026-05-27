@@ -94,8 +94,8 @@ export default function ContactFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface border-border text-text max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="bg-surface border-border text-text max-w-xl">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="font-display text-2xl">
             {isEdit ? 'Edit contact' : 'New contact'}
           </DialogTitle>
@@ -104,7 +104,8 @@ export default function ContactFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
           {!lockOrg && (
             <Field label="Organization" required>
               <Select
@@ -165,11 +166,10 @@ export default function ContactFormDialog({
           <Field label="Notes">
             <Textarea value={values.notes} onChange={set('notes')} rows={3} className="bg-bg border-border text-text" />
           </Field>
+          </div>
 
-          {/* Phone: Cancel (top, full-width) → Save (bottom, closest to thumb).
-              Desktop: Cancel + Save inline right. Bypasses DialogFooter
-              because its flex-col-reverse default would place Save above Cancel on phone. */}
-          <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
+          <div className="flex-shrink-0 flex flex-col gap-2 pt-3 mt-4 border-t border-border
+                          sm:flex-row sm:items-center sm:justify-end sm:gap-2">
             <Button
               type="button"
               variant="ghost"

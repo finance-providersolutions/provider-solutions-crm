@@ -165,8 +165,8 @@ export default function CredentialFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface border-border text-text max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="bg-surface border-border text-text max-w-xl">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="font-display text-2xl">
             {isEdit ? 'Edit credential' : 'New credential'}
           </DialogTitle>
@@ -175,7 +175,8 @@ export default function CredentialFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
           <Field label="Type" required>
             <Select value={values.credential_type || undefined} onValueChange={(v) => setValues(s => ({ ...s, credential_type: v }))}>
               <SelectTrigger name="credential_type" className="bg-bg border-border text-text"><SelectValue placeholder="—" /></SelectTrigger>
@@ -234,8 +235,10 @@ export default function CredentialFormDialog({
           <Field label="Notes">
             <Textarea value={values.notes} onChange={set('notes')} rows={3} className="bg-bg border-border text-text" />
           </Field>
+          </div>
 
-          <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-shrink-0 flex flex-col gap-2 pt-3 mt-4 border-t border-border
+                          sm:flex-row sm:items-center sm:justify-between">
             <div>
               {isEdit && onDeleted && (
                 <Button
@@ -251,10 +254,7 @@ export default function CredentialFormDialog({
                 </Button>
               )}
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2
-                            max-sm:sticky max-sm:bottom-0 max-sm:py-3
-                            max-sm:bg-surface max-sm:border-t max-sm:border-border
-                            max-sm:shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.3)]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
               <Button
                 type="button"
                 variant="ghost"

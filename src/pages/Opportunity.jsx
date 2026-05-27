@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import SectionHeader from '@/components/brand/SectionHeader';
 import Thumb from '@/components/uploads/Thumb';
 import OpportunityFormDialog from '@/components/opportunities/OpportunityFormDialog';
+import RateStructureFormDialog from '@/components/opportunities/RateStructureFormDialog';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import GPModeler from '@/components/opportunities/GPModeler';
 import SuggestedProviders from '@/components/opportunities/SuggestedProviders';
@@ -34,6 +35,7 @@ export default function Opportunity() {
   const activities = useActivities({ opportunityId: id });
 
   const [editOpen, setEditOpen] = useState(false);
+  const [rateStructureOpen, setRateStructureOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState(null);
   // Details collapsed by default — matches the Provider and Org Details
@@ -98,6 +100,16 @@ export default function Opportunity() {
   if (error)   return <Centered tone="danger">{error.message}</Centered>;
   if (!opp)    return <Centered>Opportunity not found.</Centered>;
 
+  // Two thresholds against the same two core rate columns, on purpose:
+  //   - rateStructureUnset (BOTH null) drives the Rate Structure card.
+  //     Once EITHER core rate is set, the card shows the populated grid
+  //     so the user sees their saved work.
+  //   - gpGuardOn (EITHER null) keeps the GP Modeler guarded until BOTH
+  //     core rates exist, since GP can't compute a margin from a one-
+  //     sided rate.
+  const rateStructureUnset = opp.bill_regular_hourly == null && opp.pay_regular_daily == null;
+  const gpGuardOn          = opp.bill_regular_hourly == null || opp.pay_regular_daily == null;
+
   const titleLine = opp.title || opp.name || '—';
   const orgName = opp.organization?.name || '';
   // Location — city, ST. Falls back to the parent org's city/state
@@ -147,22 +159,30 @@ export default function Opportunity() {
           />
 
           <div className="flex-1 min-w-0 flex flex-col gap-0.5 sm:gap-1">
-            {/* 1. Hospital name — links to org. Subheading treatment
-                unchanged from prior pass. */}
+            {/* 1. Hospital name — links to org. At sm:+ the city/ST
+                appends inline in parens on the same row (deliberate
+                breakpoint divergence — wide layout becomes 3 rows
+                instead of 4; mobile keeps the standalone row 2 below). */}
             {opp.organization && (
-              <Link
-                to={`/organizations/${opp.organization.id}`}
-                className="text-text hover:text-accent transition-colors text-sm truncate"
-              >
-                {orgName}
-              </Link>
+              <div className="flex items-baseline min-w-0">
+                <Link
+                  to={`/organizations/${opp.organization.id}`}
+                  className="text-text hover:text-accent transition-colors text-sm truncate"
+                >
+                  {orgName}
+                </Link>
+                {locationLine && (
+                  <span className="hidden sm:inline ml-1.5 font-mono text-[11px] text-text-dim whitespace-nowrap flex-shrink-0">
+                    ({locationLine})
+                  </span>
+                )}
+              </div>
             )}
 
-            {/* 2. City, ST — quiet secondary, directly beneath the
-                hospital. Mono small-caps matching the surrounding
-                secondary text scale. NOT 9px. */}
+            {/* 2. City, ST — mobile-only standalone row. Hidden at
+                sm:+ where the inline parens version above takes over. */}
             {locationLine && (
-              <div className="font-mono text-[11px] text-text-dim truncate">
+              <div className="sm:hidden font-mono text-[11px] text-text-dim truncate">
                 {locationLine}
               </div>
             )}
@@ -295,7 +315,30 @@ export default function Opportunity() {
         </div>
 
         <SectionHeader text="Rate structure" />
-        <div className="bg-surface border border-border rounded p-6 mb-10 space-y-6">
+        {rateStructureUnset ? (
+          <div className="bg-surface border border-border rounded p-6 mb-10 flex flex-col items-center text-center gap-3">
+            <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
+              Rate structure not set yet
+            </div>
+            <Button
+              type="button"
+              onClick={() => setRateStructureOpen(true)}
+              className="bg-accent text-accent-foreground hover:bg-accent-bright font-mono uppercase tracking-[0.1em] text-xs"
+            >
+              Set rate structure
+            </Button>
+          </div>
+        ) : (
+        <div className="relative bg-surface border border-border rounded p-6 mb-10 space-y-6">
+          <button
+            type="button"
+            onClick={() => setRateStructureOpen(true)}
+            aria-label="Edit rate structure"
+            title="Edit rate structure"
+            className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded text-text-dim hover:text-accent hover:bg-surface2 transition-colors"
+          >
+            <Pencil className="w-4 h-4" strokeWidth={1.5} />
+          </button>
           <RateGroup title="Shift defaults">
             <RateCell label="Time in"            value={opp.shift_time_in       ?? '—'} mono />
             <RateCell label="Time out"           value={opp.shift_time_out      ?? '—'} mono />
@@ -345,9 +388,16 @@ export default function Opportunity() {
             )}
           </RateGroup>
         </div>
+        )}
 
         <SectionHeader text="GP modeler" />
-        <GPModeler opportunity={opp} onSaved={refetch} />
+        {gpGuardOn ? (
+          <div className="bg-surface border border-border rounded p-6 mb-10 font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim text-center">
+            Set rate structure to model gross profit
+          </div>
+        ) : (
+          <GPModeler opportunity={opp} onSaved={refetch} />
+        )}
 
         <SectionHeader text="Activity" />
         <LogActivityForm
@@ -387,6 +437,16 @@ export default function Opportunity() {
       <OpportunityFormDialog
         open={editOpen}
         onOpenChange={setEditOpen}
+        opportunity={opp}
+        onSave={async (payload) => {
+          await update(opp.id, payload);
+          await refetch();
+        }}
+      />
+
+      <RateStructureFormDialog
+        open={rateStructureOpen}
+        onOpenChange={setRateStructureOpen}
         opportunity={opp}
         onSave={async (payload) => {
           await update(opp.id, payload);

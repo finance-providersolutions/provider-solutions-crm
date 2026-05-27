@@ -40,19 +40,33 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 // the fallback covers the 58px primary header. The 1rem cushion sits
 // between the chrome's bottom edge and the dialog's top edge.
 //
-// Tall dialogs (e.g. ProviderFormDialog with its many fields and
-// sticky save bar) use their own max-h: max-h-[90vh] + overflow-y-auto
-// to scroll content within the available viewport. The dialog
-// primitive itself doesn't impose a max-h so individual dialogs stay
-// in control of their height.
+// The primitive owns both edges of the box: the top anchors below
+// chrome via `--ps-chrome-bottom` + 1rem; maxHeight clamps the
+// bottom to the visible viewport via `100dvh - --ps-chrome-bottom
+// - 2rem` (1rem for the top cushion already in `top`, 1rem for a
+// bottom cushion). 100dvh — NOT 100vh — so mobile URL-bar collapse
+// doesn't re-break the clamp.
+//
+// DialogContent is `flex flex-col overflow-hidden` so tall dialogs
+// can lay out a scrollable body region + a pinned footer (Save bar)
+// as flex siblings — the footer never lives inside the scroll
+// region. Short dialogs whose content fits inside the maxHeight
+// render identically to before; the flex column reads the same as
+// the old `grid gap-4` for stacked children, and gap-4 still
+// applies between flex children. See the long-form consumers
+// (ProviderFormDialog, OpportunityFormDialog, RateStructureFormDialog,
+// etc.) for the body-scrolls/footer-pinned structure.
 const DialogContent = React.forwardRef(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
-      style={{ top: 'calc(var(--ps-chrome-bottom, calc(58px + env(safe-area-inset-top))) + 1rem)' }}
+      style={{
+        top: 'calc(var(--ps-chrome-bottom, calc(58px + env(safe-area-inset-top))) + 1rem)',
+        maxHeight: 'calc(100dvh - var(--ps-chrome-bottom, calc(58px + env(safe-area-inset-top))) - 2rem)',
+      }}
       className={cn(
-        "fixed left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
+        "fixed left-[50%] z-50 flex flex-col w-full max-w-lg translate-x-[-50%] gap-4 border bg-background p-6 shadow-lg overflow-hidden duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg",
         className
       )}
       {...props}>

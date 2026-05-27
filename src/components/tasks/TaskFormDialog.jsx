@@ -194,8 +194,8 @@ export default function TaskFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-surface border-border text-text max-w-xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="bg-surface border-border text-text max-w-xl">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="font-display text-2xl">
             {isEdit ? 'Edit task' : 'New task'}
           </DialogTitle>
@@ -204,7 +204,8 @@ export default function TaskFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
           <Field label="Title" required>
             <Input
               value={values.title}
@@ -306,11 +307,13 @@ export default function TaskFormDialog({
               </>
             )}
           </Field>
+          </div>
 
-          {/* Phone: Delete (top, full-width) → Cancel → Save (bottom, closest to thumb).
-              Desktop: Delete left, [Cancel, Save] inline right. Bypasses DialogFooter
-              because its flex-col-reverse default would push Delete to the bottom. */}
-          <div className="pt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {/* Footer pinned outside the scroll region. Phone: Delete
+              top, Cancel, Save bottom. Desktop: Delete left, [Cancel,
+              Save] inline right. */}
+          <div className="flex-shrink-0 flex flex-col gap-2 pt-3 mt-4 border-t border-border
+                          sm:flex-row sm:items-center sm:justify-between">
             <div>
               {isEdit && onDeleted && !hideDeleteAction && (
                 <Button
