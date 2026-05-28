@@ -27,13 +27,26 @@
     "directory": "./dist",
     "binding": "ASSETS",
     /**
-     * SPA fallback: any path that doesn't match a static file gets
-     * `/index.html` (200, not 404) so client-side routing works for
-     * /organizations/:id and friends. Replaces the `public/_redirects`
-     * mechanism we'd use under classic Pages. Only applies for paths
-     * the Worker forwards to ASSETS — the Worker handles `/api/*`
-     * itself and returns its own 404 for unknown API paths so they
-     * don't fall back to the SPA shell.
+     * Default Cloudflare behavior with the assets binding is
+     * assets-first: any request whose path matches a static file (or
+     * falls through to the SPA shell via `not_found_handling`) is
+     * served from `dist/` and the Worker NEVER runs. That meant
+     * `/api/onboarding-template/w9` matched the SPA fallback and
+     * returned index.html before our Worker had a chance to handle
+     * it. `run_worker_first: true` flips this: the Worker runs for
+     * every request and chooses whether to serve from /api/* logic
+     * or forward to `env.ASSETS.fetch(request)`. The SPA fallback
+     * still works because the Worker explicitly forwards non-/api
+     * paths to ASSETS, and ASSETS then honors `not_found_handling`
+     * for those forwarded requests.
+     */
+    "run_worker_first": true,
+    /**
+     * SPA fallback: any path the Worker forwards to ASSETS that
+     * doesn't match a static file gets `/index.html` (200, not 404)
+     * so client-side routing works for /organizations/:id and
+     * friends. Replaces the `public/_redirects` mechanism we'd use
+     * under classic Pages.
      */
     "not_found_handling": "single-page-application"
   }
