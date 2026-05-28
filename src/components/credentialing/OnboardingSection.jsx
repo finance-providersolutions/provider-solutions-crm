@@ -6,7 +6,6 @@ import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { Progress } from '@/components/ui/progress';
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { getSignedUrl } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
 // Provider onboarding — intake checklist + document templates.
@@ -162,6 +161,7 @@ export default function OnboardingSection({ providerId }) {
               return (
                 <PersistedRow
                   key={item.key}
+                  itemKey={item.key}
                   label={item.label}
                   templatePath={item.template_path}
                   templateVersion={item.version}
@@ -221,37 +221,28 @@ function CompletionStatus({ complete, total }) {
   );
 }
 
-// Lazy-fetch a fresh signed URL on click and open in a new tab.
-// Same pattern DocumentUpload uses for its "View" action so a row
-// sitting open for 6+ minutes doesn't end up with a stale link.
-function TemplateDownload({ templatePath, version }) {
-  const [opening, setOpening] = useState(false);
-  async function handleClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (opening) return;
-    setOpening(true);
-    try {
-      const url = await getSignedUrl('credentials', templatePath);
-      if (!url) {
-        toast.error('Could not load blank template');
-        return;
-      }
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } finally {
-      setOpening(false);
-    }
-  }
+// Plain anchor to the server-side redirect route. The Cloudflare
+// Worker at /api/onboarding-template/:item_key generates a fresh
+// 5-minute Supabase signed URL with the service-role key and 302s
+// to it; the browser follows the redirect as a normal navigation.
+// Why anchor rather than the old createSignedUrl + window.open
+// pattern: iOS WebKit (Safari + Chrome both) blocks window.open
+// invoked after an async fetch because it's outside the user-gesture
+// window. A same-origin <a target="_blank"> is treated as a
+// user-initiated navigation and works everywhere. e.stopPropagation
+// on the click keeps the tap from bubbling to any wrapping row.
+function TemplateDownload({ itemKey, version }) {
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={opening}
-      className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent hover:text-accent-bright disabled:opacity-50 transition-colors"
+    <a
+      href={`/api/onboarding-template/${itemKey}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent hover:text-accent-bright transition-colors"
     >
       <Download className="w-3 h-3" strokeWidth={2} />
-      {opening ? 'Opening…' : `Download blank template${version ? ` (v${version})` : ''}`}
-    </button>
+      {`Download blank template${version ? ` (v${version})` : ''}`}
+    </a>
   );
 }
 
@@ -262,7 +253,7 @@ function TemplateDownload({ templatePath, version }) {
 // ~112px tall). When the catalog row carries a template_path, the
 // blank-template download sits ABOVE the upload affordance so the
 // natural flow is "grab the blank → sign it → upload it back."
-function PersistedRow({ label, templatePath, templateVersion, row, onToggle, onDocUploaded, onDocRemove }) {
+function PersistedRow({ label, itemKey, templatePath, templateVersion, row, onToggle, onDocUploaded, onDocRemove }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const done = Boolean(row?.done);
   const hasDoc = Boolean(row?.document_path);
@@ -290,7 +281,7 @@ function PersistedRow({ label, templatePath, templateVersion, row, onToggle, onD
         </div>
         {templatePath && (
           <div className="mt-1.5">
-            <TemplateDownload templatePath={templatePath} version={templateVersion} />
+            <TemplateDownload itemKey={itemKey} version={templateVersion} />
           </div>
         )}
         {row && (

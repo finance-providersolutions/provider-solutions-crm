@@ -2,24 +2,38 @@
  * Cloudflare Workers config for the Provider Solutions CRM.
  *
  * This deploys the built `dist/` folder as static assets fronted by
- * Cloudflare Workers (Cloudflare's unified replacement for Pages).
- * No Worker script is needed — `assets` alone is enough for an SPA.
+ * a Worker script at `worker/index.js`. The Worker handles dynamic
+ * routes under `/api/*` and falls through to the assets binding
+ * (`env.ASSETS.fetch(request)`) for everything else, preserving the
+ * SPA fallback behavior declared on `not_found_handling`.
  *
  * The Cloudflare dashboard runs `npm run build` first (producing
  * `dist/`), then `npx wrangler deploy`, which reads this file and
- * uploads the assets.
+ * uploads both the Worker script and the assets together.
+ *
+ * Secrets (NOT in this file):
+ *   SUPABASE_SERVICE_ROLE_KEY — service-role key for the Worker to
+ *     mint signed URLs against the `credentials` storage bucket.
+ *     Set out-of-band with `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`
+ *     and never committed.
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "provider-solutions-crm",
+  "main": "worker/index.js",
   "compatibility_date": "2025-05-01",
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     /**
      * SPA fallback: any path that doesn't match a static file gets
      * `/index.html` (200, not 404) so client-side routing works for
      * /organizations/:id and friends. Replaces the `public/_redirects`
-     * mechanism we'd use under classic Pages.
+     * mechanism we'd use under classic Pages. Only applies for paths
+     * the Worker forwards to ASSETS — the Worker handles `/api/*`
+     * itself and returns its own 404 for unknown API paths so they
+     * don't fall back to the SPA shell.
      */
     "not_found_handling": "single-page-application"
   }
