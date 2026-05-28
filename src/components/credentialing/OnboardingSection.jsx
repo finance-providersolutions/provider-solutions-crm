@@ -1,32 +1,40 @@
 import { useRef, useState } from 'react';
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, Download, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import DocumentUpload from '@/components/uploads/DocumentUpload';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import { CollapsibleSection } from '@/components/ui/collapsible-section';
 import { Progress } from '@/components/ui/progress';
 import { useOnboarding } from '@/hooks/useOnboarding';
+import { getSignedUrl } from '@/utils/storage';
 import { cn } from '@/lib/utils';
 
-// Provider onboarding — intake checklist only. Derived license/DEA
-// rows were removed in the Phase-3b polish pass; that information
-// now lives in the Credentialing status summary above the
-// credentialing collapsible. Showing it on both sections would
-// duplicate the same fact twice on one screen.
+// Provider onboarding — intake checklist + document templates.
+// Derived license/DEA rows were removed in the Phase-3b polish
+// pass; that information now lives in the Credentialing status
+// summary above the credentialing collapsible. Showing it on both
+// sections would duplicate the same fact twice on one screen.
 //
-// Two row behaviors today:
-//   • single-persisted (cv, background_check) — one row per provider,
-//     toggled in place (the first toggle creates the row already-done
-//     in a single round-trip).
+// Three row shapes today, driven by the catalog
+// (onboarding_item_types):
+//   • single-persisted (cv, background_check, emergency_contact,
+//     malpractice_coi) — one row per provider, toggled in place
+//     (the first toggle creates the row already-done in a single
+//     round-trip). When template_path is null the row carries only
+//     the toggle + optional upload.
+//   • single-persisted WITH TEMPLATE (PSA, Attestation, W-9, Direct
+//     Deposit) — same as above, plus a "Download blank template"
+//     affordance that lazy-fetches a fresh signed URL into the
+//     `credentials` bucket on click. The blank lives at the
+//     template_path/version pointed at by the catalog row.
 //   • repeatable-persisted (references) — zero-to-many rows per
-//     provider, each with its own toggle + optional document + delete.
+//     provider, each with its own toggle + optional document +
+//     delete.
 //
-// The whole checklist body sits inside a shared CollapsibleSection
-// (default-collapsed). An always-visible "N of 3 complete" status
-// line + thin progress bar render OUTSIDE the collapsible so the
-// glance-state is available without expanding. Denominator is 3 —
-// CV, references (satisfied = ≥1 reference row done), background
-// check. License/DEA are NOT counted here.
+// The completion denominator is catalog-driven: one per non-
+// repeatable item, plus one per repeatable group (any one row done
+// satisfies the group). New catalog rows automatically extend the
+// denominator without any code change here.
 
 export default function OnboardingSection({ providerId }) {
   const { catalog, items, loading, error, create, update, remove, toggle } = useOnboarding(providerId);
@@ -55,7 +63,7 @@ export default function OnboardingSection({ providerId }) {
     return acc;
   }, {});
 
-  const completion = computeCompletion(itemsByKey);
+  const completion = computeCompletion(catalog, itemsByKey);
 
   async function handleToggle(row) {
     try {
@@ -123,7 +131,7 @@ export default function OnboardingSection({ providerId }) {
 
   return (
     <>
-      {/* Status line — always visible, calm/factual even at 0 of 3. */}
+      {/* Status line — always visible, calm/factual even at 0 of N. */}
       <CompletionStatus complete={completion.complete} total={completion.total} />
 
       {/* Collapsed body — the actual checklist. */}
@@ -155,6 +163,8 @@ export default function OnboardingSection({ providerId }) {
                 <PersistedRow
                   key={item.key}
                   label={item.label}
+                  templatePath={item.template_path}
+                  templateVersion={item.version}
                   row={row}
                   onToggle={row ? () => handleToggle(row) : () => handleEnsureRowThenToggle(item.key)}
                   onDocUploaded={(path) => row && handleDocUploaded(row, path)}
@@ -178,20 +188,25 @@ export default function OnboardingSection({ providerId }) {
   );
 }
 
-// Counts toward "N of 3 complete":
-//   • cv               — satisfied if a cv row exists with done=true
-//   • references       — satisfied if at least one references row is done
-//   • background_check — satisfied if a background_check row exists with done=true
-// License/DEA are NOT counted here (those live in the credentialing summary).
-function computeCompletion(itemsByKey) {
-  const cv  = (itemsByKey.cv  ?? []).some(r => r.done);
-  const bg  = (itemsByKey.background_check ?? []).some(r => r.done);
-  const ref = (itemsByKey.references ?? []).some(r => r.done);
-  return { complete: [cv, bg, ref].filter(Boolean).length, total: 3 };
+// Catalog-driven completion. One slot per non-repeatable catalog
+// item (satisfied when its row is done), one slot per repeatable
+// group (satisfied when at least one row in the group is done).
+// New catalog rows extend the denominator automatically.
+function computeCompletion(catalog, itemsByKey) {
+  let complete = 0;
+  for (const item of catalog) {
+    const rows = itemsByKey[item.key] ?? [];
+    if (item.repeatable) {
+      if (rows.some(r => r.done)) complete++;
+    } else if (rows[0]?.done) {
+      complete++;
+    }
+  }
+  return { complete, total: catalog.length };
 }
 
-// Calm/factual completion line — no alarm tone at 0 of 3, no
-// celebration tone at 3 of 3. Bar fills proportionally; same colour
+// Calm/factual completion line — no alarm tone at 0 of N, no
+// celebration tone at N of N. Bar fills proportionally; same colour
 // throughout because the meaning is "how far through the list," not
 // "is anything wrong."
 function CompletionStatus({ complete, total }) {
@@ -206,11 +221,48 @@ function CompletionStatus({ complete, total }) {
   );
 }
 
-// Single-persisted row — toggle + optional document control. The
-// document UI is collapsed by default and revealed via an "+ Attach"
-// button when no document is on file, to keep the row compact (the
-// full DocumentUpload dropzone is ~112px tall).
-function PersistedRow({ label, row, onToggle, onDocUploaded, onDocRemove }) {
+// Lazy-fetch a fresh signed URL on click and open in a new tab.
+// Same pattern DocumentUpload uses for its "View" action so a row
+// sitting open for 6+ minutes doesn't end up with a stale link.
+function TemplateDownload({ templatePath, version }) {
+  const [opening, setOpening] = useState(false);
+  async function handleClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (opening) return;
+    setOpening(true);
+    try {
+      const url = await getSignedUrl('credentials', templatePath);
+      if (!url) {
+        toast.error('Could not load blank template');
+        return;
+      }
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } finally {
+      setOpening(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={opening}
+      className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-accent hover:text-accent-bright disabled:opacity-50 transition-colors"
+    >
+      <Download className="w-3 h-3" strokeWidth={2} />
+      {opening ? 'Opening…' : `Download blank template${version ? ` (v${version})` : ''}`}
+    </button>
+  );
+}
+
+// Single-persisted row — toggle + optional template download +
+// optional document upload. The upload UI is collapsed by default
+// and revealed via an "+ Attach" button when no document is on file,
+// to keep the row compact (the full DocumentUpload dropzone is
+// ~112px tall). When the catalog row carries a template_path, the
+// blank-template download sits ABOVE the upload affordance so the
+// natural flow is "grab the blank → sign it → upload it back."
+function PersistedRow({ label, templatePath, templateVersion, row, onToggle, onDocUploaded, onDocRemove }) {
   const [uploadOpen, setUploadOpen] = useState(false);
   const done = Boolean(row?.done);
   const hasDoc = Boolean(row?.document_path);
@@ -236,6 +288,11 @@ function PersistedRow({ label, row, onToggle, onDocUploaded, onDocRemove }) {
         )}>
           {label}
         </div>
+        {templatePath && (
+          <div className="mt-1.5">
+            <TemplateDownload templatePath={templatePath} version={templateVersion} />
+          </div>
+        )}
         {row && (
           <div className="mt-1.5">
             {hasDoc || uploadOpen ? (
@@ -252,7 +309,7 @@ function PersistedRow({ label, row, onToggle, onDocUploaded, onDocRemove }) {
                 onClick={() => setUploadOpen(true)}
                 className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-muted hover:text-accent transition-colors"
               >
-                + Attach document
+                {templatePath ? '+ Upload signed document' : '+ Attach document'}
               </button>
             )}
           </div>
