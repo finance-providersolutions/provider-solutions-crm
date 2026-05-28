@@ -40,3 +40,9 @@ supabase/.temp
 
 # Local Claude Code session config — regenerated per session, not committed
 .claude/
+
+# CRM-local scratch directory — one-off mockups and design artifacts that
+# landed here outside the suite convention. Suite-level _reference/ at
+# the workspace root is the canonical location; this path stays untracked
+# so stray files don't appear in git status.
+_reference/
