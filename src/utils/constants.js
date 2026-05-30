@@ -1,5 +1,14 @@
 // Provider Solutions CRM — shared constants
 
+// Where to send a user who authenticates into the CRM but turns out to
+// be a provider (profile.role === 'provider'). The CRM is staff-only;
+// providers belong in the portal. RequireAuth signs such a session out
+// and redirects the browser here. Overridable via env for dev; defaults
+// to the deployed portal URL.
+export const PORTAL_URL =
+  import.meta.env.VITE_PORTAL_URL ||
+  'https://provider-solutions-portal.finance-providersolutions.workers.dev';
+
 export const ORGANIZATION_TYPES = [
   { value: 'hospital',       label: 'Hospital'        },
   { value: 'locums_partner', label: 'LOCUMs partner'  },
