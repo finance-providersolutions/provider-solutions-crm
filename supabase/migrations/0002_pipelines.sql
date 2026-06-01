@@ -111,7 +111,7 @@ create trigger providers_set_updated_at
 
 -- ─── 3. opportunities ─────────────────────────────────────────────
 -- Rate columns live directly on this table per BUILD_PLAN §4.1 and
--- docs/appsheet-schema-notes.md §D. Six bill-side dimensions, five
+-- docs/CRM-appsheet-schema-notes.md §D. Six bill-side dimensions, five
 -- pay-side dimensions, plus shift defaults and on-call window.
 -- Future split into a sibling opportunity_rate_cards table is a
 -- Phase 5+ candidate (see schema notes §D for trigger conditions).

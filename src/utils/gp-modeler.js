@@ -1,7 +1,7 @@
 // Pure GP computation for the opportunity-detail modeler.
 //
 // The formula is a direct translation of
-// docs/appsheet-schema-notes.md §E.3, extended with travel cost
+// docs/CRM-appsheet-schema-notes.md §E.3, extended with travel cost
 // (added in 0003 / commit (h.5)):
 //
 //   per-shift bill =

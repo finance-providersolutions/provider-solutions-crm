@@ -63,7 +63,7 @@
 
 9. Close any existing Claude Code session in this workspace.
 10. Open a fresh terminal at the **parent folder** `ps-apps-suite\` (NOT at `ps-app-crm\`). Same as Phase 1.
-11. Run `claude` to start a fresh session — do not carry Phase 1 conversation state into Phase 2. The repo + `BUILD_PLAN.md` + `CLAUDE.md` + `docs/appsheet-schema-notes.md` + this file are the handoff.
+11. Run `claude` to start a fresh session — do not carry Phase 1 conversation state into Phase 2. The repo + `BUILD_PLAN.md` + `CLAUDE.md` + `docs/CRM-appsheet-schema-notes.md` + this file are the handoff.
 12. Paste the prompt below.
 
 ---
@@ -83,7 +83,7 @@ DOCS TO READ FIRST
 - ps-app-crm/BUILD_PLAN.md — full architecture, data model (§4.1, §4.6),
   Phase 2 deliverables (§7), suite migration roadmap (§10).
 - ps-app-crm/CLAUDE.md — conventions, hard rules, what this app is NOT.
-- ps-app-crm/docs/appsheet-schema-notes.md — the AppSheet study that
+- ps-app-crm/docs/CRM-appsheet-schema-notes.md — the AppSheet study that
   drove the Phase 2 schema. §D is the schema proposal that's now in
   §4.1 of BUILD_PLAN. §E is the GP modeler input model. §F has the
   resolved decisions including the specialty/position_type
@@ -169,7 +169,7 @@ B. AppSheet import script
      right trade-off.
    - Specialty / position_type normalization: maps AppSheet values to
      canonical CRM values per the table in
-     docs/appsheet-schema-notes.md §F. Every normalization is logged
+     docs/CRM-appsheet-schema-notes.md §F. Every normalization is logged
      as INFO. Values that don't match a known mapping are flagged
      needs-review in the log; the row is NOT silently coerced.
    - Address parsing: populate address (full AppSheet string), parse
@@ -230,13 +230,13 @@ D. GP modeler component
      all 6 bill + 5 pay dimensions + shift defaults + on-call window
      per BUILD_PLAN §4.1).
    - Utilization assumptions (user-adjustable form): defaults from
-     docs/appsheet-schema-notes.md §E.2 — shifts/week, working
+     docs/CRM-appsheet-schema-notes.md §E.2 — shifts/week, working
      days/shift, orientation days/placement, OT hours per working
      day, on-call nights/shift, call-back hours/call-night, adv.
      shift bonus days/shift, other bonus days/shift, weeks billable
      per year.
    Output: weekly / monthly / annual GP and GP margin computed per
-   docs/appsheet-schema-notes.md §E.3, updated live as inputs
+   docs/CRM-appsheet-schema-notes.md §E.3, updated live as inputs
    change. Reuses currency/percent formatters from
    src/utils/formatters.js. Estimates rendered with the italic + ~
    prefix + text-warning treatment per the design system.
@@ -358,7 +358,7 @@ DO NOT RUN THE IMPORT SCRIPT
 WORKING STYLE
 - Plan first, then build. Before writing any code:
   (a) confirm in writing that you've read BUILD_PLAN.md, CLAUDE.md,
-      docs/appsheet-schema-notes.md, and the existing ps-app-crm/src
+      docs/CRM-appsheet-schema-notes.md, and the existing ps-app-crm/src
       from Phase 1.
   (b) show me the file plan — every file you intend to create or
       modify, grouped by deliverable section (A through H above).
@@ -402,7 +402,7 @@ WORKING STYLE
 
 START HERE
 1. Read ps-app-crm/BUILD_PLAN.md and ps-app-crm/CLAUDE.md fully.
-2. Read ps-app-crm/docs/appsheet-schema-notes.md fully.
+2. Read ps-app-crm/docs/CRM-appsheet-schema-notes.md fully.
 3. Skim ps-app-crm/src/ to re-orient on Phase 1 patterns
    (AuthContext, RequireAuth, the existing pages, hooks shape,
    brand components).
@@ -426,4 +426,4 @@ START HERE
 
 ## After Phase 2 ships
 
-Open a new Claude Code session for Phase 3 (credentialing) with a similarly scoped kickoff doc. Don't carry Phase 2 conversation state into Phase 3 — the repo + `BUILD_PLAN.md` + `CLAUDE.md` + `docs/appsheet-schema-notes.md` are the handoff. Phase 3 introduces `provider_licenses`, `credentials`, `facility_privileges`, the private `credentials` storage bucket, the cross-provider expiration dashboard, and the daily credential-alerts edge function. The `ImageUpload` component built in Phase 2 extends to credential document uploads.
+Open a new Claude Code session for Phase 3 (credentialing) with a similarly scoped kickoff doc. Don't carry Phase 2 conversation state into Phase 3 — the repo + `BUILD_PLAN.md` + `CLAUDE.md` + `docs/CRM-appsheet-schema-notes.md` are the handoff. Phase 3 introduces `provider_licenses`, `credentials`, `facility_privileges`, the private `credentials` storage bucket, the cross-provider expiration dashboard, and the daily credential-alerts edge function. The `ImageUpload` component built in Phase 2 extends to credential document uploads.

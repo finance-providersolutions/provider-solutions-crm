@@ -18,7 +18,7 @@
  *   - Idempotent on appsheet_id. Re-runs upsert by AppSheet ID.
  *   - --dry-run prints planned writes; no DB or storage writes.
  *   - Specialty / position_type / setting normalization per
- *     docs/appsheet-schema-notes.md §F. Unmapped values are
+ *     docs/CRM-appsheet-schema-notes.md §F. Unmapped values are
  *     FLAGGED in the log; rows are not silently coerced.
  *   - Address: full AppSheet string into `address`; city/state
  *     parsed from "City, ST"; zip left null.
@@ -62,7 +62,7 @@ const MANIFEST     = path.join(REFERENCE, 'appsheet-image-import-manifest.json')
 const BUCKET_ORG_LOGOS = 'organization-logos';
 const BUCKET_PROVIDER_PHOTOS = 'provider-photos';
 
-// Normalization mapping per docs/appsheet-schema-notes.md §F.
+// Normalization mapping per docs/CRM-appsheet-schema-notes.md §F.
 // Update this map AND the doc together — the doc is the source of
 // truth and any new value flagged at runtime should be reviewed
 // before this map is extended.
@@ -255,7 +255,7 @@ function normalize(field, raw, log, rowIdent) {
   }
   log.flag(
     `${rowIdent}: ${field} value '${value}' has no normalization mapping — ` +
-    `field left null. Add to docs/appsheet-schema-notes.md §F if it should be mapped.`
+    `field left null. Add to docs/CRM-appsheet-schema-notes.md §F if it should be mapped.`
   );
   return null;
 }

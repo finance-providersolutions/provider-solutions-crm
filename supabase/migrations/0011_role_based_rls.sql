@@ -38,7 +38,7 @@
 -- DROPPED, so the seeded admin user never loses access during the
 -- transaction.
 --
--- Plan-of-record document: ps-app-crm/docs/RLS-PLAN.md.
+-- Plan-of-record document: ps-app-crm/docs/CRM-RLS-PLAN.md.
 --
 -- Migrations are immutable once shipped. Never edit this file
 -- after it has been applied to a Supabase environment — add a
@@ -139,7 +139,7 @@ $$;
 -- not yet logged in (no row in auth.users). If Reed has never used
 -- the CRM yet, his profile is NOT seeded here; he must log in once
 -- so auth.users captures his id, then a follow-up one-line insert
--- adds his profile. The verification step in RLS-PLAN.md §8 lists
+-- adds his profile. The verification step in CRM-RLS-PLAN.md §8 lists
 -- exactly what was actually seeded, so the gap (if any) is visible.
 --
 -- DEFERRED — Reed-as-provider. Reed is also a practicing physician
@@ -339,7 +339,7 @@ drop policy "authenticated all access on onboarding_items" on public.onboarding_
 --
 -- Provider-scoping verification against a real provider account is
 -- deferred to the portal slice. Staff-side verification (see
--- RLS-PLAN.md §8) is what this slice ships.
+-- CRM-RLS-PLAN.md §8) is what this slice ships.
 
 -- =============================================================
 -- ROLLBACK — uncomment and run as a separate SQL editor pass

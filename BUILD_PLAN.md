@@ -189,7 +189,7 @@ pay-side dimensions, plus shift defaults and on-call window. No separate
 rate-card child table in Phase 2; future split to a sibling
 `opportunity_rate_cards` table is a Phase 5+ candidate if rates need
 versioning, multiple tiers per opportunity, or distinct
-proposed/contracted/active states. See `docs/appsheet-schema-notes.md`
+proposed/contracted/active states. See `docs/CRM-appsheet-schema-notes.md`
 §D for full rationale.
 
 | col | type | notes |
@@ -541,7 +541,7 @@ Goal: opportunities and providers have real pipeline visibility; tasks drive day
 
   Per-run log at `_reference/import-run-YYYY-MM-DD-HHMM.log`, plain text, one issue per line with severity prefix (`INFO` / `WARN` / `ERROR`). Top of log summarizes counts: inserted / updated / skipped (already current by `appsheet_id`) / flagged-for-review. Below that, one line per flagged row with reason — normalization mismatch, address didn't parse, missing required field, missing image binary, etc.
 
-  Specialty / position_type normalization: maps AppSheet values (`M.D.`, `Gastro.`, `Inpatient`, `Outpatient`, …) to canonical CRM values (`MD`, `GI`, `inpatient`, `outpatient`, …) per the table in `docs/appsheet-schema-notes.md` §F. Every normalization is logged as `INFO 'M.D.' → 'MD' (N rows)`. Any value that doesn't match a known mapping is **flagged needs-review** in the log; the row is not silently coerced. Mapping table is updated in the doc before the next run.
+  Specialty / position_type normalization: maps AppSheet values (`M.D.`, `Gastro.`, `Inpatient`, `Outpatient`, …) to canonical CRM values (`MD`, `GI`, `inpatient`, `outpatient`, …) per the table in `docs/CRM-appsheet-schema-notes.md` §F. Every normalization is logged as `INFO 'M.D.' → 'MD' (N rows)`. Any value that doesn't match a known mapping is **flagged needs-review** in the log; the row is not silently coerced. Mapping table is updated in the doc before the next run.
 
   Address parsing: populate `address` (full AppSheet string), parse `city` and `state` from the `City, ST` field, leave `zip` null. No street regex.
 
@@ -557,7 +557,7 @@ Goal: opportunities and providers have real pipeline visibility; tasks drive day
   - Reusable upload component at `src/components/uploads/ImageUpload.jsx` — drag-drop, progress indicator, file-size and file-type validation. Built so it can be extended for Phase 3 credential document uploads into the private `credentials` bucket (different bucket, signed URLs, but same component shell).
   - Logos and photos rendered in list rows (small thumbnail) and detail headers (larger). Tasteful neutral default placeholders for missing images — no broken-image icons.
 
-- **GP modeler component on opportunity detail.** Inputs: rate-structure fields read from the opportunity row + utilization assumptions (defaults documented in `docs/appsheet-schema-notes.md` §E.2 — shifts/week, working days/shift, OT hours/working-day, on-call nights/shift, etc.). Interactive — user adjusts assumptions, projected weekly / monthly / annual GP and GP margin update live. Computation per `docs/appsheet-schema-notes.md` §E.3. Reuses formatting helpers from `src/utils/formatters.js` (currency formatting, italic-`~` prefix on estimates per the design system). Two actions:
+- **GP modeler component on opportunity detail.** Inputs: rate-structure fields read from the opportunity row + utilization assumptions (defaults documented in `docs/CRM-appsheet-schema-notes.md` §E.2 — shifts/week, working days/shift, OT hours/working-day, on-call nights/shift, etc.). Interactive — user adjusts assumptions, projected weekly / monthly / annual GP and GP margin update live. Computation per `docs/CRM-appsheet-schema-notes.md` §E.3. Reuses formatting helpers from `src/utils/formatters.js` (currency formatting, italic-`~` prefix on estimates per the design system). Two actions:
   - **Save assumptions to opportunity** — writes the assumption blob to `opportunities.modeling_assumptions` (jsonb).
   - **Reset to defaults** — clears the local form back to the documented default assumptions.
 

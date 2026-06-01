@@ -65,7 +65,7 @@ export const POSITION_TYPES = [
 ];
 
 // Free-text in the schema, but normalized on import per
-// docs/appsheet-schema-notes.md §F. Today the only canonical value
+// docs/CRM-appsheet-schema-notes.md §F. Today the only canonical value
 // in our data is GI; CRNA / NP specialties (etc.) get added as the
 // list grows.
 export const SPECIALTIES = [
