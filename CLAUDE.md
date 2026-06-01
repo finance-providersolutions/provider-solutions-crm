@@ -8,7 +8,7 @@ Internal CRM for Provider Solutions, LLC, a LOCUMs physician staffing company. S
 
 ## Project facts
 
-- **Hosting**: Cloudflare Pages, same as `ps-app-dashboard/`. Each app keeps its own Pages project. SPA fallback via `public/_redirects` (`/* /index.html 200`).
+- **Hosting**: Cloudflare (Workers + Static Assets) under the `provider-solutions-crm` project. A small Worker at `worker/index.js` (`run_worker_first`) fronts the `dist/` assets, serves the `/api/*` routes, and falls through to `env.ASSETS.fetch` for SPA routing; the old `public/_redirects` was removed when that landed. Pushing to `origin/main` auto-builds and deploys via Cloudflare's GitHub integration; `npx wrangler deploy` is the manual fallback. See `CRM-STATE.md` for detail.
 - **Credential expiration alert recipient**: `all.provider.solutions@gmail.com` (used by the Phase 3 `credential-alerts` Edge Function)
 - **Backend**: Supabase (single project, all environments share it for now)
 - **Legacy AppSheet linkage**: tables that may have legacy AppSheet records use an `appsheet_id` text column for stable matching during the transition. Currently: `providers`, `organizations`, `opportunities`.
@@ -74,7 +74,6 @@ postcss.config.js
 components.json                  # shadcn/ui config
 jsconfig.json                    # path aliases (@/components/ui/button, etc.)
 public/
-  _redirects                     # SPA fallback
   pslogo.png
 src/
   main.jsx                       # ReactDOM.createRoot
@@ -108,6 +107,8 @@ src/
 supabase/
   migrations/                    # numbered SQL migrations (immutable once shipped)
   functions/                     # edge functions (Deno/TypeScript) — Phase 3
+worker/
+  index.js                       # Cloudflare Worker — /api routes + SPA asset fallthrough
 ```
 
 ## Design system (must match financial dashboard)
