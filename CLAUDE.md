@@ -54,7 +54,7 @@ ps-apps-suite/                   ← claude code runs from here
 
 ## Tech stack (locked — do not propose alternatives unless explicitly asked)
 
-- **Backend**: Supabase (Postgres, Auth via magic link, Storage, Edge Functions)
+- **Backend**: Supabase (Postgres, Auth via email OTP, Storage, Edge Functions)
 - **Frontend**: React 18 (plain JSX, no TypeScript) + Vite 5 + react-router-dom 6
 - **Styling**: Tailwind CSS 3 + design tokens via CSS variables (in `src/styles/tokens.css`)
 - **Component primitives**: shadcn/ui (installed via CLI into `src/components/ui/`)
