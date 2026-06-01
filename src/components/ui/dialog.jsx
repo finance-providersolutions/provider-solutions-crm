@@ -30,7 +30,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 // 58px, z-200) or by any page-owned fixed chrome below it (list-page
 // bar-2 / bar-3 at z-150, the provider detail page's condensed header
 // also at z-150). Chrome sits above the dialog's z-50 overlay by design
-// (STATE.md: "chrome bars at z-150 / z-200 sit above overlays so the
+// (CRM-STATE.md: "chrome bars at z-150 / z-200 sit above overlays so the
 // user can still orient on what page they are on while an overlay
 // is open").
 //

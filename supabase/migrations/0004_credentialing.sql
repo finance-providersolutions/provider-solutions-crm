@@ -1,7 +1,7 @@
 -- =============================================================
 -- Provider Solutions CRM — Phase 3 slice 3a: credentialing core
 --
--- Layered credentialing model per ROADMAP.md "Next up" item 3:
+-- Layered credentialing model per CRM-ROADMAP.md "Next up" item 3:
 --
 --   provider_licenses     — provider-level. State medical licenses.
 --                           Matching reads this layer (specialty
@@ -189,7 +189,7 @@ create trigger facility_privileges_set_updated_at
 -- Phase 1 strategy continues (BUILD_PLAN §4.5): any authenticated
 -- user can SELECT/INSERT/UPDATE/DELETE everything. No anonymous
 -- access. Role-based RLS (admin/recruiter/viewer via a profiles
--- table) is still deferred — gating note in ROADMAP.md before any
+-- table) is still deferred — gating note in CRM-ROADMAP.md before any
 -- user beyond Jason and Reed gets an account.
 
 alter table public.provider_licenses    enable row level security;

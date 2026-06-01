@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 // Slice 4 minimal-mirror-Provider detail page for contacts.
 // Header has no thumb (contacts carry no image today). No Activity
 // or Tasks section — activities don't link to contacts directly per
-// STATE.md, and tasks don't either. Page-level Delete at the bottom
+// CRM-STATE.md, and tasks don't either. Page-level Delete at the bottom
 // is the canonical destructive affordance from this entry point;
 // ContactFormDialog has no in-dialog Delete, so there's no conflict
 // to resolve via a hideDeleteAction prop (unlike Tasks).

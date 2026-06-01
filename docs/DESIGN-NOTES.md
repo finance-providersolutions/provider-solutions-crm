@@ -2,7 +2,7 @@
 
 This is a build-then-polish design ledger for the CRM. The app is built section by section, with presentation decisions made locally as each section comes to life. That approach is deliberate — it lets each slice ship a working surface without re-litigating cross-page consistency every time — but it produces small visual and pattern inconsistencies between sections built at different points in the arc, and the reasoning behind each local choice is easy to lose by the time the polish pass arrives.
 
-This file records those page-design decisions and known inconsistencies as they happen, so the eventual polish pass starts with the full accumulated context in one place to reconcile from. It is distinct from STATE.md (a snapshot of what is true right now in the app) and ROADMAP.md (what is planned next) — this is append-mostly design history, polish-pass-facing. Each future slice should append any new page-design decisions or noticed inconsistencies here as part of its doc pass.
+This file records those page-design decisions and known inconsistencies as they happen, so the eventual polish pass starts with the full accumulated context in one place to reconcile from. It is distinct from CRM-STATE.md (a snapshot of what is true right now in the app) and CRM-ROADMAP.md (what is planned next) — this is append-mostly design history, polish-pass-facing. Each future slice should append any new page-design decisions or noticed inconsistencies here as part of its doc pass.
 
 ## Provider detail page
 
@@ -60,7 +60,7 @@ Contacts list sits in its own bg-surface card with `divide-y` per-row separators
 
 ## Contact detail page
 
-Slice-4 minimal-mirror-Provider shape: flowing header (no thumb, name + role badge + Created + Edit), one Details section, page-level Delete at the bottom. No Activity or Tasks — activities don't link to contacts directly (schema gap noted in STATE.md), and tasks don't either.
+Slice-4 minimal-mirror-Provider shape: flowing header (no thumb, name + role badge + Created + Edit), one Details section, page-level Delete at the bottom. No Activity or Tasks — activities don't link to contacts directly (schema gap noted in CRM-STATE.md), and tasks don't either.
 
 Details uses the older `SectionHeader text="Details" first` plus a bg-surface-card-wrapped DetailGrid, always-visible. Has not been migrated onto the DetailsCollapsibleHeader pattern that Provider and Organization now share.
 
@@ -80,7 +80,7 @@ Verdict label for the requirements-undefined case currently reads "Incomplete". 
 
 Mobile row layout on the opportunity page tiers drops the redundant position+specialty meta (constant across the filtered list since specialty and position type are hard eligibility filters) and keeps home state alone on a lower line with the status indicator right-aligned alongside it. Desktop keeps the full position·specialty·state meta with status inline next to the name. This responsive treatment is opportunity-page-only.
 
-Hospital Privilege Roster rows were assessed but left as-is during the same slice. Position and specialty are NOT redundant on the roster (it shows providers across any specialty/position who hold a privilege at the hospital), so the opportunity-page mobile fix would lose useful varying info. Rows fit cleanly at 380px on current seed data because names are short and the roster has no per-row action button (more horizontal slack than the opp-page rows). If real provider names grow long enough to crowd the right-aligned status, the planned treatment is to move status to a small inline pill at the LEFT of the meta line so the full position·specialty·state info still flows to its right — preserves all per-row variation. Recorded in the ROADMAP polish-pass entry and in STATE.md Known issues.
+Hospital Privilege Roster rows were assessed but left as-is during the same slice. Position and specialty are NOT redundant on the roster (it shows providers across any specialty/position who hold a privilege at the hospital), so the opportunity-page mobile fix would lose useful varying info. Rows fit cleanly at 380px on current seed data because names are short and the roster has no per-row action button (more horizontal slack than the opp-page rows). If real provider names grow long enough to crowd the right-aligned status, the planned treatment is to move status to a small inline pill at the LEFT of the meta line so the full position·specialty·state info still flows to its right — preserves all per-row variation. Recorded in the ROADMAP polish-pass entry and in CRM-STATE.md Known issues.
 
 ## Shared components and patterns
 
@@ -155,6 +155,6 @@ V6 staffing diagnostic — evaluate each hard dimension (state license / special
 
 ## Going-forward convention
 
-Each future slice's doc pass should append any new page-design decisions or noticed inconsistencies to this file alongside the STATE.md and ROADMAP.md updates. Keep entries tight — a sentence or two each — and group them by page/surface so the polish pass can scan. The ledger stays current without backfilling.
+Each future slice's doc pass should append any new page-design decisions or noticed inconsistencies to this file alongside the CRM-STATE.md and CRM-ROADMAP.md updates. Keep entries tight — a sentence or two each — and group them by page/surface so the polish pass can scan. The ledger stays current without backfilling.
 
 The polish pass is sequenced last on purpose so presentation isn't re-polished as the app's patterns keep evolving. When it arrives, this file is the input it reconciles from.

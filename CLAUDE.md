@@ -190,8 +190,8 @@ Ask. Especially for:
 
 ## End-of-session documentation protocol
 
-Two mobile-readable docs live at `docs/STATE.md` (architectural snapshot) and `docs/ROADMAP.md` (in-flight, next up, parked). They exist so that brainstorming sessions in claude.ai chat — typically on a phone, away from the codebase — start with accurate situational awareness. They are NOT code documentation.
+Two mobile-readable docs live at `docs/CRM-STATE.md` (architectural snapshot) and `docs/CRM-ROADMAP.md` (in-flight, next up, parked). They exist so that brainstorming sessions in claude.ai chat — typically on a phone, away from the codebase — start with accurate situational awareness. They are NOT code documentation.
 
-At the end of any session that materially changes architecture, integrations, core domain rules, or roadmap state (work started, completed, parked, or unparked), update `docs/STATE.md` and/or `docs/ROADMAP.md` per the rules in `docs/MAINTENANCE.md` **before considering the session complete**. Trivial code changes — typo fixes, copy edits, a single bug fix that does not change the model — do not require an update.
+At the end of any session that materially changes architecture, integrations, core domain rules, or roadmap state (work started, completed, parked, or unparked), update `docs/CRM-STATE.md` and/or `docs/CRM-ROADMAP.md` per the rules in `docs/MAINTENANCE.md` **before considering the session complete**. Trivial code changes — typo fixes, copy edits, a single bug fix that does not change the model — do not require an update.
 
 If the change affects cross-app integration (how this CRM talks to `ps-app-dashboard`, the QBO proxy worker, the future scheduling app, or the future provider portal), also flag the suite-level docs at `/ps-apps-suite/docs/` for update. Do NOT edit suite-level docs from this repo — `ps-app-crm/` is the only path with write access — but call out the needed update in your end-of-session summary so it can be made from the parent workspace.
