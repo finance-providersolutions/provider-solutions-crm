@@ -228,7 +228,7 @@ export function useCredentialTypes() {
   const labelByKey = useMemo(() => {
     const m = new Map();
     for (const t of types ?? []) {
-      const key = t?.type_key ?? t?.key;
+      const key = t?.key;
       if (!key) continue;
       m.set(key, t?.label ?? t?.name ?? key);
     }

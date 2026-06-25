@@ -24,7 +24,6 @@ const EMPTY = {
   identifier:       '',
   state:            '',
   ps_provided:      false,
-  application_date: '',
   issue_date:       '',
   expiration_date:  '',
   document_path:    null,
@@ -67,7 +66,6 @@ export default function CredentialFormDialog({
           identifier:       credential.identifier       ?? '',
           state:            credential.state            ?? '',
           ps_provided:      Boolean(credential.ps_provided),
-          application_date: credential.application_date ?? '',
           issue_date:       credential.issue_date       ?? '',
           expiration_date:  credential.expiration_date  ?? '',
           document_path:    credential.document_path    ?? null,
@@ -89,7 +87,7 @@ export default function CredentialFormDialog({
   // the picker is never empty.
   const typeOptions = useMemo(() => {
     const rows = (catalog ?? [])
-      .map(t => ({ value: t.type_key ?? t.key, label: t.label ?? t.name ?? (t.type_key ?? t.key) }))
+      .map(t => ({ value: t.key, label: t.label ?? t.name ?? t.key }))
       .filter(o => o.value);
     if (!rows.length) return CREDENTIAL_TYPES;
     return rows.sort((a, b) => a.label.localeCompare(b.label));
@@ -141,15 +139,8 @@ export default function CredentialFormDialog({
       scrollToFirstError(formRef, ['state']);
       return;
     }
-    // Date ordering — application → issue → expiration when each
-    // pair is populated. Mirrors the schema's existing CHECK and
-    // the computed-status precedence.
-    if (values.application_date && values.issue_date
-        && values.issue_date < values.application_date) {
-      toast.error('Issue date must be on or after application date');
-      scrollToFirstError(formRef, ['issue_date']);
-      return;
-    }
+    // Date ordering — issue → expiration when both are populated.
+    // Mirrors the provider_credentials_dates_ordered CHECK.
     if (values.issue_date && values.expiration_date
         && values.expiration_date < values.issue_date) {
       toast.error('Expiration date must be on or after issue date');
@@ -175,7 +166,6 @@ export default function CredentialFormDialog({
         // don't carry them so a flip doesn't leave stale values.
         state:            needsState ? (values.state || null) : null,
         ps_provided:      isMalpractice ? Boolean(values.ps_provided) : null,
-        application_date: values.application_date || null,
         issue_date:       values.issue_date       || null,
         expiration_date:  values.expiration_date  || null,
         document_path:    values.document_path    || null,
@@ -264,10 +254,7 @@ export default function CredentialFormDialog({
             </Field>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Application date">
-              <Input name="application_date" type="date" value={values.application_date} onChange={set('application_date')} className="bg-bg border-border text-text" />
-            </Field>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field label="Issue date">
               <Input name="issue_date" type="date" value={values.issue_date} onChange={set('issue_date')} className="bg-bg border-border text-text" />
             </Field>
