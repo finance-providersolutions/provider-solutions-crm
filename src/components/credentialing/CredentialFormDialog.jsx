@@ -14,16 +14,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import DocumentUpload from '@/components/uploads/DocumentUpload';
-import { CREDENTIAL_TYPES } from '@/utils/constants';
+import { CREDENTIAL_TYPES, US_STATES } from '@/utils/constants';
 import { scrollToFirstError } from '@/utils/form';
-import {
-  deriveCredentialingStatus, statusForInsert,
-} from '@/components/credentialing/expiration';
+import { useCredentialTypes } from '@/hooks/useCredentialing';
 
 const EMPTY = {
-  credential_type:  '',
+  type_key:         '',
   label:            '',
   identifier:       '',
+  state:            '',
+  ps_provided:      false,
   application_date: '',
   issue_date:       '',
   expiration_date:  '',
@@ -31,10 +31,15 @@ const EMPTY = {
   notes:            '',
 };
 
-// The schema enforces (credential_type='other' → label is non-blank)
-// via credentials_other_requires_label CHECK. This dialog conditionally
-// reveals the Label field when type=other and treats it as required
-// in that branch so the DB error never surfaces to the user.
+// type_keys that carry a US-state jurisdiction (the state medical
+// license and the state controlled-substance registration). The
+// state field is revealed and required for these.
+const STATE_SCOPED_TYPES = ['state_medical_license', 'state_csr'];
+
+// For `other` rows the label is the only identity the credential has,
+// so this dialog reveals the Label field when type_key='other' and
+// treats it as required in that branch. State-scoped types
+// (state_medical_license / state_csr) additionally require a state.
 //
 // `identifier` stays separate from `label` — identifier is the
 // DEA number / certificate number; label is the human-readable name
@@ -44,6 +49,7 @@ export default function CredentialFormDialog({
   open, onOpenChange, credential, onSave, onDeleted,
 }) {
   const isEdit = Boolean(credential);
+  const { types: catalog } = useCredentialTypes();
   const [values, setValues] = useState(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -56,9 +62,11 @@ export default function CredentialFormDialog({
     if (!open) return;
     setValues(credential
       ? {
-          credential_type:  credential.credential_type  ?? '',
+          type_key:         credential.type_key         ?? '',
           label:            credential.label            ?? '',
           identifier:       credential.identifier       ?? '',
+          state:            credential.state            ?? '',
+          ps_provided:      Boolean(credential.ps_provided),
           application_date: credential.application_date ?? '',
           issue_date:       credential.issue_date       ?? '',
           expiration_date:  credential.expiration_date  ?? '',
@@ -71,17 +79,34 @@ export default function CredentialFormDialog({
 
   const set = (k) => (e) => setValues(v => ({ ...v, [k]: e.target.value }));
 
-  const isOther = values.credential_type === 'other';
+  const isOther       = values.type_key === 'other';
+  const needsState    = STATE_SCOPED_TYPES.includes(values.type_key);
+  const isMalpractice = values.type_key === 'malpractice';
+
+  // Type options come from the credential_types catalog (0013) so the
+  // new state-scoped types surface alongside the migrated five. While
+  // the catalog loads, fall back to the CREDENTIAL_TYPES constant so
+  // the picker is never empty.
+  const typeOptions = useMemo(() => {
+    const rows = (catalog ?? [])
+      .map(t => ({ value: t.type_key ?? t.key, label: t.label ?? t.name ?? (t.type_key ?? t.key) }))
+      .filter(o => o.value);
+    if (!rows.length) return CREDENTIAL_TYPES;
+    return rows.sort((a, b) => a.label.localeCompare(b.label));
+  }, [catalog]);
+
   const identifierPlaceholder = useMemo(() => {
-    switch (values.credential_type) {
-      case 'dea':                 return 'DEA number';
-      case 'board_certification': return 'Certificate number';
+    switch (values.type_key) {
+      case 'dea':                   return 'DEA number';
+      case 'board_certification':   return 'Certificate number';
       case 'bls':
-      case 'acls':                return 'Card / cert number';
-      case 'malpractice':         return 'Policy number';
-      default:                    return '';
+      case 'acls':                  return 'Card / cert number';
+      case 'malpractice':           return 'Policy number';
+      case 'state_medical_license': return 'License number';
+      case 'state_csr':             return 'CSR / CDS number';
+      default:                      return '';
     }
-  }, [values.credential_type]);
+  }, [values.type_key]);
 
   async function performDelete() {
     if (!credential || !onDeleted) return;
@@ -101,14 +126,19 @@ export default function CredentialFormDialog({
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!values.credential_type) {
+    if (!values.type_key) {
       toast.error('Type is required');
-      scrollToFirstError(formRef, ['credential_type']);
+      scrollToFirstError(formRef, ['type_key']);
       return;
     }
     if (isOther && !values.label.trim()) {
       toast.error('Label is required when type is "Other"');
       scrollToFirstError(formRef, ['label']);
+      return;
+    }
+    if (needsState && !values.state) {
+      toast.error('State is required for this credential type');
+      scrollToFirstError(formRef, ['state']);
       return;
     }
     // Date ordering — application → issue → expiration when each
@@ -128,24 +158,23 @@ export default function CredentialFormDialog({
     }
     setSubmitting(true);
     try {
-      // Status is computed from dates. INSERT writes the mapped
-      // value (applied → pending) to satisfy NOT NULL + CHECK;
-      // UPDATE omits status entirely so the DB column rides.
-      const derived = deriveCredentialingStatus({
-        applicationDate: values.application_date || null,
-        grantingDate:    values.issue_date       || null,
-        expirationDate:  values.expiration_date  || null,
-      });
+      // No lifecycle `status` on provider_credentials — the wallet's
+      // gate is verification_status, defaulted to staff_verified by
+      // the create hook for recruiter-entered data. The display
+      // lifecycle (Active/Expired/…) is still derived from the dates
+      // at render time.
       const payload = {
-        ...(isEdit
-          ? {}
-          : { id: parentId, status: statusForInsert(derived) }),
-        credential_type:  values.credential_type,
+        ...(isEdit ? {} : { id: parentId }),
+        type_key:         values.type_key,
         // label is only meaningful for `other`; clear it on the
         // named types so the row doesn't carry stale text if the
         // user flipped type from 'other' to 'dea' before saving.
         label:            isOther ? values.label.trim() : null,
         identifier:       values.identifier       || null,
+        // state/ps_provided are type-scoped: cleared on types that
+        // don't carry them so a flip doesn't leave stale values.
+        state:            needsState ? (values.state || null) : null,
+        ps_provided:      isMalpractice ? Boolean(values.ps_provided) : null,
         application_date: values.application_date || null,
         issue_date:       values.issue_date       || null,
         expiration_date:  values.expiration_date  || null,
@@ -178,10 +207,10 @@ export default function CredentialFormDialog({
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
           <Field label="Type" required>
-            <Select value={values.credential_type || undefined} onValueChange={(v) => setValues(s => ({ ...s, credential_type: v }))}>
-              <SelectTrigger name="credential_type" className="bg-bg border-border text-text"><SelectValue placeholder="—" /></SelectTrigger>
+            <Select value={values.type_key || undefined} onValueChange={(v) => setValues(s => ({ ...s, type_key: v }))}>
+              <SelectTrigger name="type_key" className="bg-bg border-border text-text"><SelectValue placeholder="—" /></SelectTrigger>
               <SelectContent>
-                {CREDENTIAL_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                {typeOptions.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -199,6 +228,17 @@ export default function CredentialFormDialog({
             </Field>
           )}
 
+          {needsState && (
+            <Field label="State" required>
+              <Select value={values.state || undefined} onValueChange={(v) => setValues(s => ({ ...s, state: v }))}>
+                <SelectTrigger name="state" className="bg-bg border-border text-text"><SelectValue placeholder="—" /></SelectTrigger>
+                <SelectContent>
+                  {US_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+
           <Field label="Identifier">
             <Input
               value={values.identifier}
@@ -207,6 +247,22 @@ export default function CredentialFormDialog({
               className="bg-bg border-border text-text"
             />
           </Field>
+
+          {isMalpractice && (
+            <Field label="Malpractice coverage">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={Boolean(values.ps_provided)}
+                  onChange={(e) => setValues(v => ({ ...v, ps_provided: e.target.checked }))}
+                  className="w-4 h-4 accent-accent"
+                />
+                <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-text-dim">
+                  Provided by Provider Solutions
+                </span>
+              </label>
+            </Field>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <Field label="Application date">

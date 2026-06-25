@@ -1,13 +1,12 @@
 import { useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, BadgeCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CardKebab } from '@/components/ui/card-kebab';
 import { ConfirmDeleteDialog } from '@/components/ui/confirm-delete-dialog';
 import CredentialFormDialog from '@/components/credentialing/CredentialFormDialog';
-import { useCredentials } from '@/hooks/useCredentialing';
-import { CREDENTIAL_TYPES, labelFor } from '@/utils/constants';
+import { useCredentials, useCredentialTypes, credentialLabel } from '@/hooks/useCredentialing';
 import { getSignedUrl } from '@/utils/storage';
 import {
   deriveCredentialingStatus,
@@ -18,11 +17,26 @@ import ExpirationCluster from '@/components/credentialing/ExpirationCluster';
 import { cn } from '@/lib/utils';
 
 export default function CredentialsSection({ providerId }) {
-  const { data, loading, error, create, update, remove } = useCredentials(providerId);
+  const { data, loading, error, create, update, remove, verify } = useCredentials(providerId);
+  const { labelByKey } = useCredentialTypes();
   const [createOpen, setCreateOpen]     = useState(false);
   const [editing, setEditing]           = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const deleteTriggerRef                = useRef(null);
+
+  async function handleVerify(c) {
+    try {
+      await verify(c);
+      toast.success(
+        c.type_key === 'state_medical_license'
+          ? 'Verified — state license promoted'
+          : 'Credential verified',
+      );
+    } catch (err) {
+      console.error('Credential verify failed', err);
+      toast.error(err?.message || 'Could not verify credential');
+    }
+  }
 
   return (
     <>
@@ -49,7 +63,9 @@ export default function CredentialsSection({ providerId }) {
             <CredentialRow
               key={c.id}
               credential={c}
+              labelByKey={labelByKey}
               onEdit={() => setEditing(c)}
+              onVerify={() => handleVerify(c)}
               onDelete={(triggerEl) => {
                 deleteTriggerRef.current = triggerEl;
                 setDeleteTarget(c);
@@ -77,7 +93,7 @@ export default function CredentialsSection({ providerId }) {
         open={Boolean(deleteTarget)}
         onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
         triggerRef={deleteTriggerRef}
-        title={deleteTarget ? `Delete ${displayName(deleteTarget)}?` : 'Delete?'}
+        title={deleteTarget ? `Delete ${credentialLabel(deleteTarget, labelByKey)}?` : 'Delete?'}
         description="This will also remove any uploaded document. This cannot be undone."
         onConfirm={async () => {
           try {
@@ -94,17 +110,7 @@ export default function CredentialsSection({ providerId }) {
   );
 }
 
-// Display name: for `other` rows, use the row's label (e.g., "PALS").
-// For named types, use the enum label ("DEA"). Falls back to the raw
-// type value if neither is available.
-function displayName(c) {
-  if (c.credential_type === 'other') {
-    return c.label || 'Other credential';
-  }
-  return labelFor(CREDENTIAL_TYPES, c.credential_type);
-}
-
-function CredentialRow({ credential: c, onEdit, onDelete }) {
+function CredentialRow({ credential: c, labelByKey, onEdit, onVerify, onDelete }) {
   const [opening, setOpening] = useState(false);
   const hasDoc = Boolean(c.document_path);
 
@@ -114,7 +120,13 @@ function CredentialRow({ credential: c, onEdit, onDelete }) {
     expirationDate:  c.expiration_date,
   });
 
-  const name = displayName(c);
+  const name = credentialLabel(c, labelByKey);
+
+  // Staff "Verify" sits between Edit and Delete in the kebab; it
+  // disappears once the instance is already staff_verified.
+  const extraItems = c.verification_status !== 'staff_verified'
+    ? [{ label: 'Verify', icon: BadgeCheck, onSelect: () => onVerify?.() }]
+    : [];
 
   async function openDoc() {
     if (!hasDoc || opening) return;
@@ -154,8 +166,9 @@ function CredentialRow({ credential: c, onEdit, onDelete }) {
           <h4 className="flex-1 min-w-0 font-display text-[18px] text-accent leading-none truncate">
             {name}
           </h4>
+          <VerificationBadge status={c.verification_status} />
           <StatusBadge status={derived} />
-          <CardKebab ariaLabel="Credential actions" onEdit={onEdit} onDelete={onDelete} />
+          <CardKebab ariaLabel="Credential actions" extraItems={extraItems} onEdit={onEdit} onDelete={onDelete} />
         </div>
         <div className="flex items-center gap-2 min-w-0">
           <p className="flex-1 min-w-0 font-mono text-[11px] text-text-dim leading-snug truncate">
@@ -190,12 +203,39 @@ function CredentialRow({ credential: c, onEdit, onDelete }) {
         <div className="flex-shrink-0 flex items-center gap-3">
           <ExpirationCluster date={c.expiration_date} status={derived} />
           <div className="flex items-center gap-2">
+            <VerificationBadge status={c.verification_status} />
             <StatusBadge status={derived} />
-            <CardKebab ariaLabel="Credential actions" onEdit={onEdit} onDelete={onDelete} />
+            <CardKebab ariaLabel="Credential actions" extraItems={extraItems} onEdit={onEdit} onDelete={onDelete} />
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// Verification gate (migration 0013) — orthogonal to the date-derived
+// lifecycle StatusBadge. provider_attested → amber (claimed, not yet
+// confirmed), staff_verified → green (staff confirmed), rejected →
+// red. Unknown/missing renders nothing.
+const VERIFICATION_BADGE = {
+  provider_attested: { label: 'Attested', cls: 'bg-warning/15 text-warning border-warning/40' },
+  staff_verified:    { label: 'Verified', cls: 'bg-income/15  text-income  border-income/40' },
+  rejected:          { label: 'Rejected', cls: 'bg-danger/15  text-danger  border-danger/40' },
+};
+
+function VerificationBadge({ status }) {
+  const v = VERIFICATION_BADGE[status];
+  if (!v) return null;
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        'flex-shrink-0 font-mono text-[10px] uppercase tracking-[0.1em]',
+        v.cls,
+      )}
+    >
+      {v.label}
+    </Badge>
   );
 }
 

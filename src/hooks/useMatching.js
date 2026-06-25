@@ -34,7 +34,15 @@ export function useAllCredentialing() {
     try {
       const [licRes, credRes, privRes] = await Promise.all([
         supabase.from('provider_licenses').select('*'),
-        supabase.from('credentials').select('*'),
+        // Credential wallet (migration 0013): only staff-verified
+        // instances are authoritative for readiness — provider-
+        // attested and rejected rows must NOT satisfy a requirement.
+        // type_key is aliased back to credential_type so readiness.js
+        // (which keys on credential_type) is untouched.
+        supabase
+          .from('provider_credentials')
+          .select('*')
+          .eq('verification_status', 'staff_verified'),
         supabase
           .from('facility_privileges')
           .select('*, organization:organizations(id, name, city, state, logo_path)'),
@@ -43,7 +51,7 @@ export function useAllCredentialing() {
       if (credRes.error) throw credRes.error;
       if (privRes.error) throw privRes.error;
       setLicenses(licRes.data     ?? []);
-      setCredentials(credRes.data ?? []);
+      setCredentials((credRes.data ?? []).map(r => ({ ...r, credential_type: r.type_key })));
       setPrivileges(privRes.data  ?? []);
     } catch (err) {
       setError(err);

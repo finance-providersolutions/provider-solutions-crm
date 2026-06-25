@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/api/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { CREDENTIAL_TYPES, labelFor } from '@/utils/constants';
 
 // Phase 3 slice 3a — per-provider scoped CRUD hooks for the three
 // credentialing tables created in 0004. All three follow the same
@@ -93,11 +94,11 @@ export function useCredentials(providerId) {
     setLoading(true);
     setError(null);
     const { data: rows, error: err } = await supabase
-      .from('credentials')
+      .from('provider_credentials')
       .select('*')
       .eq('provider_id', providerId)
-      .order('expiration_date',  { ascending: true, nullsFirst: false })
-      .order('credential_type',  { ascending: true });
+      .order('expiration_date', { ascending: true, nullsFirst: false })
+      .order('type_key',        { ascending: true });
     if (err) { setError(err); setLoading(false); return; }
     setData(rows ?? []);
     setLoading(false);
@@ -105,10 +106,20 @@ export function useCredentials(providerId) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
+  // Recruiter-entered data is authoritative by default: a credential
+  // a staff user types into the CRM is staff_verified unless the
+  // caller overrides verification_status explicitly. There is no
+  // lifecycle `status` column on provider_credentials — the legacy
+  // statusForInsert mapping is gone.
   const create = useCallback(async (input) => {
     const { data: row, error: err } = await supabase
-      .from('credentials')
-      .insert({ ...input, provider_id: providerId, created_by: user?.id ?? null })
+      .from('provider_credentials')
+      .insert({
+        ...input,
+        provider_id: providerId,
+        created_by: user?.id ?? null,
+        verification_status: input.verification_status ?? 'staff_verified',
+      })
       .select()
       .single();
     if (err) throw err;
@@ -118,7 +129,7 @@ export function useCredentials(providerId) {
 
   const update = useCallback(async (id, patch) => {
     const { data: row, error: err } = await supabase
-      .from('credentials')
+      .from('provider_credentials')
       .update(patch)
       .eq('id', id)
       .select()
@@ -130,14 +141,111 @@ export function useCredentials(providerId) {
 
   const remove = useCallback(async (id) => {
     const { error: err } = await supabase
-      .from('credentials')
+      .from('provider_credentials')
       .delete()
       .eq('id', id);
     if (err) throw err;
     await refetch();
   }, [refetch]);
 
-  return { data, loading, error, refetch, create, update, remove };
+  // Staff promotion bridge. Marks the wallet instance staff_verified;
+  // for a state medical license it additionally upserts the
+  // authoritative provider_licenses row — the layer Phase 4 matching
+  // reads. provider_licenses has no (provider_id, state) unique
+  // constraint, so the upsert is a read-then-write keyed on that
+  // pair. The wallet stays the record of entry; the license row is
+  // the derived, match-queried projection of a verified license.
+  const verify = useCallback(async (credential) => {
+    const { error: err } = await supabase
+      .from('provider_credentials')
+      .update({ verification_status: 'staff_verified' })
+      .eq('id', credential.id);
+    if (err) throw err;
+
+    if (credential.type_key === 'state_medical_license' && credential.state) {
+      const licensePayload = {
+        state:           credential.state,
+        license_number:  credential.identifier      ?? null,
+        issue_date:      credential.issue_date       ?? null,
+        expiration_date: credential.expiration_date  ?? null,
+        document_path:   credential.document_path     ?? null,
+        status:          'active',
+      };
+      const { data: existing, error: findErr } = await supabase
+        .from('provider_licenses')
+        .select('id')
+        .eq('provider_id', providerId)
+        .eq('state', credential.state)
+        .limit(1);
+      if (findErr) throw findErr;
+      if (existing && existing.length > 0) {
+        const { error: updErr } = await supabase
+          .from('provider_licenses')
+          .update(licensePayload)
+          .eq('id', existing[0].id);
+        if (updErr) throw updErr;
+      } else {
+        const { error: insErr } = await supabase
+          .from('provider_licenses')
+          .insert({ ...licensePayload, provider_id: providerId, created_by: user?.id ?? null });
+        if (insErr) throw insErr;
+      }
+    }
+    await refetch();
+  }, [providerId, user, refetch]);
+
+  return { data, loading, error, refetch, create, update, remove, verify };
+}
+
+// ─── credential_types catalog (0013) ──────────────────────────────
+// The credential_types catalog is the source of truth for the
+// selectable type_keys and their display labels (it carries the five
+// migrated enum types plus the new ones — state_medical_license,
+// state_csr, etc.). Fetched once per mount. labelByKey resolves a
+// type_key to its label, falling back to the CREDENTIAL_TYPES
+// constant for the migrated five while the catalog loads or if a row
+// lacks a label. Defensive about the label column name so a catalog
+// whose label lives under `label` or `name` both resolve.
+export function useCredentialTypes() {
+  const [types, setTypes]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error: err } = await supabase
+        .from('credential_types')
+        .select('*');
+      if (!active) return;
+      if (err) { setError(err); setLoading(false); return; }
+      setTypes(data ?? []);
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const labelByKey = useMemo(() => {
+    const m = new Map();
+    for (const t of types ?? []) {
+      const key = t?.type_key ?? t?.key;
+      if (!key) continue;
+      m.set(key, t?.label ?? t?.name ?? key);
+    }
+    return m;
+  }, [types]);
+
+  return { types, labelByKey, loading, error };
+}
+
+// Row-aware label resolver shared by the credentialing surfaces.
+// `other` rows have no enum identity — they carry their own free-text
+// label. Named types resolve via the catalog, falling back to the
+// CREDENTIAL_TYPES constant (covers the migrated five offline).
+export function credentialLabel(row, labelByKey) {
+  if (!row) return '—';
+  if (row.type_key === 'other') return row.label || 'Other credential';
+  return labelByKey?.get(row.type_key) ?? labelFor(CREDENTIAL_TYPES, row.type_key);
 }
 
 // ─── facility_privileges ──────────────────────────────────────────

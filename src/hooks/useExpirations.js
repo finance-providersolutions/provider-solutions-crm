@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/api/supabase';
-import { CREDENTIAL_TYPES, labelFor } from '@/utils/constants';
+import { useCredentialTypes, credentialLabel } from '@/hooks/useCredentialing';
 import {
   PRIVILEGE_TERMINAL_STATUSES,
   expirationBucket,
@@ -39,6 +39,7 @@ export function useExpirations() {
   const [privileges, setPrivileges]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
+  const { labelByKey } = useCredentialTypes();
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -51,7 +52,7 @@ export function useExpirations() {
           .select(`*, ${providerSelect}`)
           .not('expiration_date', 'is', null),
         supabase
-          .from('credentials')
+          .from('provider_credentials')
           .select(`*, ${providerSelect}`)
           .not('expiration_date', 'is', null),
         supabase
@@ -94,12 +95,11 @@ export function useExpirations() {
 
     for (const c of credentials) {
       if (c.provider?.archived) continue;
-      const named = labelFor(CREDENTIAL_TYPES, c.credential_type);
       result.push({
         id:             `credential:${c.id}`,
         sourceType:     'credential',
         typeLabel:      'Credential',
-        itemLabel:      c.credential_type === 'other' ? (c.label || 'Other') : named,
+        itemLabel:      credentialLabel(c, labelByKey),
         provider:       c.provider,
         providerId:     c.provider?.id,
         providerName:   joinName(c.provider),
@@ -122,7 +122,7 @@ export function useExpirations() {
     }
 
     return result;
-  }, [licenses, credentials, privileges]);
+  }, [licenses, credentials, privileges, labelByKey]);
 
   return { items, loading, error, refetch };
 }
