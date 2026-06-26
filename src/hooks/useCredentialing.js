@@ -241,7 +241,24 @@ export function useCredentialTypes() {
     return m;
   }, [types]);
 
-  return { types, labelByKey, loading, error };
+  // type_key → allows_value flag. Drives whether a credential carries
+  // an identifier (DEA number, certificate number, …) at all; types
+  // like BLS/ACLS are certs with no number, so allows_value is false
+  // and the identifier line is suppressed entirely rather than shown
+  // empty. Consumers default to SHOWING unless the catalog explicitly
+  // says false, so an unloaded catalog or a row missing the column
+  // never hides a real identifier.
+  const allowsValueByKey = useMemo(() => {
+    const m = new Map();
+    for (const t of types ?? []) {
+      const key = t?.key;
+      if (!key) continue;
+      m.set(key, t?.allows_value);
+    }
+    return m;
+  }, [types]);
+
+  return { types, labelByKey, allowsValueByKey, loading, error };
 }
 
 // Row-aware label resolver shared by the credentialing surfaces.

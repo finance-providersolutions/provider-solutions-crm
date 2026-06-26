@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 
 export default function CredentialsSection({ providerId }) {
   const { data, loading, error, create, update, remove, verify } = useCredentials(providerId);
-  const { labelByKey } = useCredentialTypes();
+  const { labelByKey, allowsValueByKey } = useCredentialTypes();
   const [createOpen, setCreateOpen]     = useState(false);
   const [editing, setEditing]           = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -64,6 +64,7 @@ export default function CredentialsSection({ providerId }) {
               key={c.id}
               credential={c}
               labelByKey={labelByKey}
+              allowsValueByKey={allowsValueByKey}
               onEdit={() => setEditing(c)}
               onVerify={() => handleVerify(c)}
               onDelete={(triggerEl) => {
@@ -110,7 +111,7 @@ export default function CredentialsSection({ providerId }) {
   );
 }
 
-function CredentialRow({ credential: c, labelByKey, onEdit, onVerify, onDelete }) {
+function CredentialRow({ credential: c, labelByKey, allowsValueByKey, onEdit, onVerify, onDelete }) {
   const [opening, setOpening] = useState(false);
   const hasDoc = Boolean(c.document_path);
 
@@ -121,6 +122,16 @@ function CredentialRow({ credential: c, labelByKey, onEdit, onVerify, onDelete }
   });
 
   const name = credentialLabel(c, labelByKey);
+
+  // Only show the identifier line for types that actually carry one
+  // (DEA number, certificate number, …). For value-less certs like
+  // BLS/ACLS the catalog's allows_value is false, so the line is
+  // omitted entirely rather than rendered as a greyed "No identifier"
+  // that reads like a missing field. Default to SHOWING unless the
+  // catalog explicitly says false, so an unloaded catalog never hides
+  // a real identifier; the "no identifier yet" treatment for value-
+  // bearing types the provider hasn't filled in is unchanged.
+  const showIdentifier = allowsValueByKey?.get(c.type_key) !== false;
 
   // Staff "Verify" sits between Edit and Delete in the kebab; it
   // disappears once the instance is already staff_verified.
@@ -171,9 +182,13 @@ function CredentialRow({ credential: c, labelByKey, onEdit, onVerify, onDelete }
           <CardKebab ariaLabel="Credential actions" extraItems={extraItems} onEdit={onEdit} onDelete={onDelete} />
         </div>
         <div className="flex items-center gap-2 min-w-0">
-          <p className="flex-1 min-w-0 font-mono text-[11px] text-text-dim leading-snug truncate">
-            {c.identifier || <span className="text-text-muted">No identifier</span>}
-          </p>
+          {showIdentifier ? (
+            <p className="flex-1 min-w-0 font-mono text-[11px] text-text-dim leading-snug truncate">
+              {c.identifier || <span className="text-text-muted">No identifier</span>}
+            </p>
+          ) : (
+            <div className="flex-1" />
+          )}
           <ExpirationCluster date={c.expiration_date} status={derived} />
         </div>
         {c.notes && (
@@ -191,9 +206,11 @@ function CredentialRow({ credential: c, labelByKey, onEdit, onVerify, onDelete }
           </h4>
         </div>
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-          <p className="font-mono text-[12px] text-text leading-none truncate">
-            {c.identifier || <span className="text-text-muted">No identifier</span>}
-          </p>
+          {showIdentifier && (
+            <p className="font-mono text-[12px] text-text leading-none truncate">
+              {c.identifier || <span className="text-text-muted">No identifier</span>}
+            </p>
+          )}
           {c.notes && (
             <p className="text-text-dim text-[12px] leading-snug truncate">
               {c.notes}
