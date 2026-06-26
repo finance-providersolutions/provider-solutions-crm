@@ -162,10 +162,16 @@ export default function CredentialFormDialog({
         // user flipped type from 'other' to 'dea' before saving.
         label:            isOther ? values.label.trim() : null,
         identifier:       values.identifier       || null,
-        // state/ps_provided are type-scoped: cleared on types that
-        // don't carry them so a flip doesn't leave stale values.
+        // state is type-scoped and nullable — cleared to null on types
+        // that don't carry it so a flip doesn't leave stale values.
         state:            needsState ? (values.state || null) : null,
-        ps_provided:      isMalpractice ? Boolean(values.ps_provided) : null,
+        // ps_provided is NOT NULL DEFAULT false in the DB, so it must
+        // ALWAYS go out as a real boolean — false when the malpractice
+        // checkbox doesn't apply. Sending null (the old behavior) over-
+        // rode the default and violated the not-null constraint on
+        // every non-malpractice save. Covers create and update alike,
+        // since this one payload feeds both.
+        ps_provided:      isMalpractice ? Boolean(values.ps_provided) : false,
         issue_date:       values.issue_date       || null,
         expiration_date:  values.expiration_date  || null,
         document_path:    values.document_path    || null,
