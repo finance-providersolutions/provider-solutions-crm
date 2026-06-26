@@ -106,11 +106,17 @@ export function useCredentials(providerId) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  // Recruiter-entered data is authoritative by default: a credential
-  // a staff user types into the CRM is staff_verified unless the
-  // caller overrides verification_status explicitly. There is no
-  // lifecycle `status` column on provider_credentials — the legacy
-  // statusForInsert mapping is gone.
+  // Bright line: creation NEVER verifies. A new row is always born
+  // unverified ('provider_attested'), for every type and regardless of
+  // which fields are filled — staff routinely create an empty stub just
+  // to tell a provider what to supply (the complete-only model), which
+  // is not an act of verification. staff_verified is the flag matching
+  // and compliance trust, so it must only ever result from the explicit
+  // staff verify() action below — never from an insert. verification_
+  // status is forced here (not `?? input`) so no caller can assert a
+  // verification through the create path. There is no lifecycle `status`
+  // column on provider_credentials — the legacy statusForInsert mapping
+  // is gone.
   const create = useCallback(async (input) => {
     const { data: row, error: err } = await supabase
       .from('provider_credentials')
@@ -118,7 +124,7 @@ export function useCredentials(providerId) {
         ...input,
         provider_id: providerId,
         created_by: user?.id ?? null,
-        verification_status: input.verification_status ?? 'staff_verified',
+        verification_status: 'provider_attested',
       })
       .select()
       .single();

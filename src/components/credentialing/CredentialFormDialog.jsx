@@ -150,10 +150,13 @@ export default function CredentialFormDialog({
     setSubmitting(true);
     try {
       // No lifecycle `status` on provider_credentials — the wallet's
-      // gate is verification_status, defaulted to staff_verified by
-      // the create hook for recruiter-entered data. The display
-      // lifecycle (Active/Expired/…) is still derived from the dates
-      // at render time.
+      // gate is verification_status, which this form NEVER sets: new
+      // rows are born unverified ('provider_attested') by the create
+      // hook, and verification only ever happens through the explicit
+      // staff verify() action. So this payload deliberately omits
+      // verification_status on both create and edit — editing a row
+      // must not silently flip it. The display lifecycle (Active/
+      // Expired/…) is still derived from the dates at render time.
       const payload = {
         ...(isEdit ? {} : { id: parentId }),
         type_key:         values.type_key,
